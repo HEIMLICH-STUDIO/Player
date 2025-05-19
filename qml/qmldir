@@ -1,0 +1,6 @@
+module mpv
+singleton Theme 1.0 Theme.qml
+VideoOutput 1.0 VideoOutput.qml
+PlayerControls 1.0 PlayerControls.qml
+PlaylistView 1.0 PlaylistView.qml
+TestButtons 1.0 TestButtons.qml 

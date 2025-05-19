@@ -1,0 +1,18 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/main.qml</file>
+        <file>qml/PlayerControls.qml</file>
+        <file>qml/VideoOutput.qml</file>
+        <file>qml/PlaylistView.qml</file>
+        <file>qml/Theme.qml</file>
+        <file>qml/qmldir</file>
+        <file>assets/icons/play.svg</file>
+        <file>assets/icons/pause.svg</file>
+        <file>assets/icons/stop.svg</file>
+        <file>assets/icons/forward.svg</file>
+        <file>assets/icons/backward.svg</file>
+        <file>assets/icons/fullscreen.svg</file>
+        <file>assets/icons/volume.svg</file>
+        <file>assets/icons/mute.svg</file>
+    </qresource>
+</RCC> 
