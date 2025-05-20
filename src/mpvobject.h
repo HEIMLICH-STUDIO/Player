@@ -17,6 +17,9 @@ class MpvObject : public QQuickFramebufferObject
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
     Q_PROPERTY(double duration READ duration NOTIFY durationChanged)
     Q_PROPERTY(QString mediaTitle READ mediaTitle NOTIFY mediaTitleChanged)
+    Q_PROPERTY(bool playing READ isPlaying NOTIFY playingChanged)
+    Q_PROPERTY(double volume READ volume WRITE setVolume NOTIFY volumeChanged)
+    Q_PROPERTY(bool muted READ isMuted WRITE setMuted NOTIFY mutedChanged)
 
     mpv_handle *mpv;
     mpv_render_context *mpv_context;
@@ -27,6 +30,8 @@ class MpvObject : public QQuickFramebufferObject
     bool m_pause = false;
     double m_position = 0;
     double m_duration = 0;
+    double m_volume = 100.0;
+    bool m_muted = false;
 
 public:
     MpvObject(QQuickItem *parent = nullptr);
@@ -37,6 +42,12 @@ public:
     bool isPaused() const { return m_pause; }
     double position() const { return m_position; }
     double duration() const { return m_duration; }
+    bool isPlaying() const { return !m_pause; }
+    double volume() const { return m_volume; }
+    bool isMuted() const { return m_muted; }
+
+    Q_INVOKABLE void setVolume(double volume);
+    Q_INVOKABLE void setMuted(bool muted);
 
     QQuickFramebufferObject::Renderer *createRenderer() const override;
 
@@ -52,6 +63,8 @@ signals:
     void positionChanged(double position);
     void durationChanged(double duration);
     void playingChanged(bool playing);
+    void volumeChanged(double volume);
+    void mutedChanged(bool muted);
     void onUpdate();
     void videoReconfig();
 

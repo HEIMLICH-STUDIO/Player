@@ -167,6 +167,8 @@ MpvObject::MpvObject(QQuickItem * parent)
     mpv_observe_property(mpv, 0, "duration", MPV_FORMAT_DOUBLE);
     mpv_observe_property(mpv, 0, "media-title", MPV_FORMAT_STRING);
     mpv_observe_property(mpv, 0, "filename", MPV_FORMAT_STRING);
+    mpv_observe_property(mpv, 0, "volume", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(mpv, 0, "mute", MPV_FORMAT_FLAG);
     
     // 이벤트 콜백 설정
     mpv_set_wakeup_callback(mpv, on_mpv_events, this);
@@ -239,6 +241,17 @@ void MpvObject::handleMpvEvents()
                 char *filename = *(char **)prop->data;
                 m_filename = QString::fromUtf8(filename);
                 emit filenameChanged(m_filename);
+            }
+            else if (strcmp(prop->name, "volume") == 0 && prop->format == MPV_FORMAT_DOUBLE) {
+                double vol = *(double *)prop->data;
+                m_volume = vol;
+                emit volumeChanged(vol);
+            }
+            else if (strcmp(prop->name, "mute") == 0 && prop->format == MPV_FORMAT_FLAG) {
+                int value = *(int *)prop->data;
+                bool muted = value != 0;
+                m_muted = muted;
+                emit mutedChanged(muted);
             }
             break;
         }
@@ -346,4 +359,19 @@ void MpvObject::playPause()
 {
     bool paused = getProperty("pause").toBool();
     setProperty("pause", !paused);
-} 
+}
+
+void MpvObject::setVolume(double volume)
+{
+    m_volume = volume;
+    mpv_set_property(mpv, "volume", MPV_FORMAT_DOUBLE, &volume);
+    emit volumeChanged(volume);
+}
+
+void MpvObject::setMuted(bool muted)
+{
+    int flag = muted ? 1 : 0;
+    m_muted = muted;
+    mpv_set_property(mpv, "mute", MPV_FORMAT_FLAG, &flag);
+    emit mutedChanged(muted);
+}
