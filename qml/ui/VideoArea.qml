@@ -253,39 +253,39 @@ Item {
     }
     
     // 프레임 단위 이동
-    function stepForward() {
+    function stepForward(frames) {
+        if (frames === undefined)
+            frames = 1;
         if (!mpvSupported) {
             showMessage("Cannot step: MPV support not available");
             return;
         }
-        
+
         var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
         if (mpvPlayer) {
-            if (mpvPlayer.pause) {
-                // 정지 상태에서는 프레임 단위 이동
-                mpvPlayer.command(["frame-step"]);
-            } else {
-                // 재생 중에는 일단 멈추고 프레임 이동
+            if (!mpvPlayer.pause) {
                 mpvPlayer.pause = true;
+            }
+            for (var i = 0; i < frames; ++i) {
                 mpvPlayer.command(["frame-step"]);
             }
         }
     }
-    
-    function stepBackward() {
+
+    function stepBackward(frames) {
+        if (frames === undefined)
+            frames = 1;
         if (!mpvSupported) {
             showMessage("Cannot step: MPV support not available");
             return;
         }
-        
+
         var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
         if (mpvPlayer) {
-            if (mpvPlayer.pause) {
-                // 정지 상태에서는 프레임 단위 이동
-                mpvPlayer.command(["frame-back-step"]);
-            } else {
-                // 재생 중에는 일단 멈추고 프레임 이동
+            if (!mpvPlayer.pause) {
                 mpvPlayer.pause = true;
+            }
+            for (var i = 0; i < frames; ++i) {
                 mpvPlayer.command(["frame-back-step"]);
             }
         }
@@ -308,6 +308,6 @@ Item {
     // 키보드 포커스
     focus: true
     Keys.onSpacePressed: playPause()
-    Keys.onLeftPressed: stepBackward()
-    Keys.onRightPressed: stepForward()
-} 
+    Keys.onLeftPressed: stepBackward(1)
+    Keys.onRightPressed: stepForward(1)
+}

@@ -66,8 +66,8 @@ Item {
             // 컨트롤 버튼 이벤트 처리
             onOpenFileRequested: videoArea.openFile()
             onPlayPauseRequested: videoArea.playPause()
-            onFrameBackRequested: videoArea.stepBackward()
-            onFrameForwardRequested: videoArea.stepForward()
+            onFrameBackRequested: function(frames) { videoArea.stepBackward(frames) }
+            onFrameForwardRequested: function(frames) { videoArea.stepForward(frames) }
             onSeekToFrameRequested: function(frame) {
                 videoArea.seekToFrame(frame)
             }

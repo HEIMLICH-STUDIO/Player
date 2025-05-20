@@ -6,7 +6,6 @@ import Utils 1.0 as Utils
 
 // Import local components
 import mpv 1.0
-import "components"
 import "panels"
 import "controls"
 import "popups"

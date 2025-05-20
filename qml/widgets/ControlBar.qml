@@ -21,8 +21,8 @@ Rectangle {
     // 시그널
     signal openFileRequested()
     signal playPauseRequested()
-    signal frameBackRequested()
-    signal frameForwardRequested()
+    signal frameBackRequested(int frames)
+    signal frameForwardRequested(int frames)
     signal seekToFrameRequested(int frame)
     signal fullscreenToggleRequested()
     signal settingsToggleRequested()
@@ -96,7 +96,7 @@ Rectangle {
             IconButton {
                 iconSource: "backward"
                 iconSize: 18
-                onClicked: frameBackRequested()
+                onClicked: frameBackRequested(10)
                 
                 ToolTip.visible: hovered
                 ToolTip.text: "Step Back 10 Frames"
@@ -106,10 +106,7 @@ Rectangle {
             IconButton {
                 iconSource: "prev"
                 iconSize: 18
-                onClicked: {
-                    // 한 프레임만 뒤로
-                    frameBackRequested();
-                }
+                onClicked: frameBackRequested(1)
                 
                 ToolTip.visible: hovered
                 ToolTip.text: "Previous Frame"
@@ -136,10 +133,7 @@ Rectangle {
             IconButton {
                 iconSource: "next"
                 iconSize: 18
-                onClicked: {
-                    // 한 프레임만 앞으로
-                    frameForwardRequested();
-                }
+                onClicked: frameForwardRequested(1)
                 
                 ToolTip.visible: hovered
                 ToolTip.text: "Next Frame"
@@ -149,7 +143,7 @@ Rectangle {
             IconButton {
                 iconSource: "forward"
                 iconSize: 18
-                onClicked: frameForwardRequested()
+                onClicked: frameForwardRequested(10)
                 
                 ToolTip.visible: hovered
                 ToolTip.text: "Step Forward 10 Frames"
