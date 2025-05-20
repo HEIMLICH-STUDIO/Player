@@ -26,6 +26,7 @@ Rectangle {
     signal seekToFrameRequested(int frame)
     signal fullscreenToggleRequested()
     signal settingsToggleRequested()
+    signal toggleScopesRequested()
     
     // 타임라인 영역
     Item {
@@ -161,17 +162,27 @@ Rectangle {
                 iconSource: "settings"
                 iconSize: 18
                 onClicked: settingsToggleRequested()
-                
+
                 ToolTip.visible: hovered
                 ToolTip.text: "Settings"
             }
-            
+
+            // 스코프/그래프 뷰 토글
+            IconButton {
+                iconSource: "scopes"
+                iconSize: 18
+                onClicked: toggleScopesRequested()
+
+                ToolTip.visible: hovered
+                ToolTip.text: "Scopes"
+            }
+
             // 전체화면 버튼
             IconButton {
                 iconSource: "fullscreen"
                 iconSize: 18
                 onClicked: fullscreenToggleRequested()
-                
+
                 ToolTip.visible: hovered
                 ToolTip.text: "Fullscreen"
             }
