@@ -1,65 +1,70 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 
 import "../utils"
 
-// 아이콘 버튼 컴포넌트
+// Icon button for QT 6+
 Rectangle {
     id: root
     
-    // 크기 설정
+    // Size settings
     width: 36
     height: 36
-    radius: 4
+    radius: width / 2 // Make it circular
     
-    // 스타일 속성
-    property string iconSource: ""    // 아이콘 이름 (assets/icons/에서 로드)
-    property int iconSize: 16         // 아이콘 크기
-    property real iconOpacity: 1.0    // 아이콘 투명도
+    // Style properties
+    property string iconSource: ""
+    property int iconSize: 16
     
-    // 색상 속성 - ThemeManager와 통합
-    property color bgColorNormal: "transparent"
-    property color bgColorHover: ThemeManager.isDarkTheme ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(0, 0, 0, 0.1)
-    property color bgColorPressed: ThemeManager.isDarkTheme ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(0, 0, 0, 0.15)
-    property color bgColorChecked: ThemeManager.isDarkTheme ? Qt.rgba(0, 0.4, 0.8, 0.2) : Qt.rgba(0, 0.4, 0.8, 0.1)
-    
+    // Compatibility properties (for existing references in other files)
     property color textColorNormal: ThemeManager.controlIconColor
-    property color textColorHover: ThemeManager.controlIconHoverColor
+    property color textColorHover: ThemeManager.isDarkTheme ? 
+                                  Qt.lighter(ThemeManager.controlIconColor, 1.3) : 
+                                  Qt.darker(ThemeManager.controlIconColor, 1.3)
     property color textColorPressed: ThemeManager.accentColor
     property color textColorChecked: ThemeManager.accentColor
     
-    // 상태 속성
-    property bool enabled: true
-    property bool hovered: mouseArea.containsMouse
-    property bool pressed: mouseArea.pressed
+    property color bgColorNormal: "transparent"
+    property color bgColorHover: ThemeManager.isDarkTheme ? 
+                               Qt.rgba(1, 1, 1, 0.1) : 
+                               Qt.rgba(0, 0, 0, 0.05)
+    property color bgColorPressed: ThemeManager.isDarkTheme ? 
+                                 Qt.rgba(1, 1, 1, 0.15) : 
+                                 Qt.rgba(0, 0, 0, 0.1)
+    property color bgColorChecked: ThemeManager.isDarkTheme ? 
+                                 Qt.rgba(ThemeManager.accentColor.r, ThemeManager.accentColor.g, ThemeManager.accentColor.b, 0.2) : 
+                                 Qt.rgba(ThemeManager.accentColor.r, ThemeManager.accentColor.g, ThemeManager.accentColor.b, 0.1)
     
-    // 기능 속성
+    // State properties
+    property bool enabled: true
+    property bool hovered: area.containsMouse
+    property bool pressed: area.pressed
+    
+    // Function properties
     property bool checkable: false
     property bool checked: false
     signal clicked()
     signal pressAndHold()
     
-    // 툴팁 대체 텍스트
+    // Tooltip text
     property string tipText: ""
-    property bool showTip: tipText !== "" && mouseArea.containsMouse
+    property bool showTip: tipText !== "" && area.containsMouse
     
-    // 배경색 바인딩
+    // Background color changes based on state with smooth transitions
     color: {
-        if (!enabled) {
-            return Qt.rgba(bgColorNormal.r, bgColorNormal.g, bgColorNormal.b, 0.3);
-        } else if (pressed) {
-            return bgColorPressed;
-        } else if (checked) {
-            return bgColorChecked;
-        } else if (hovered) {
-            return bgColorHover;
-        } else {
-            return bgColorNormal;
-        }
+        if (!enabled) return "transparent";
+        if (pressed) return bgColorPressed;
+        if (checked) return bgColorChecked;
+        if (hovered) return bgColorHover;
+        return bgColorNormal;
     }
     
-    // 아이콘 색상 계산
+    // Smooth transition for background color
+    Behavior on color {
+        ColorAnimation { duration: 150 }
+    }
+    
+    // Current icon color based on state
     property color currentIconColor: {
         if (!enabled) {
             return Qt.rgba(textColorNormal.r, textColorNormal.g, textColorNormal.b, 0.5);
@@ -74,9 +79,14 @@ Rectangle {
         }
     }
     
-    // SVG 아이콘 이미지
+    // Smooth transition for icon color
+    Behavior on currentIconColor {
+        ColorAnimation { duration: 150 }
+    }
+    
+    // Simple SVG icon 
     Image {
-        id: icon
+        id: iconImage
         anchors.centerIn: parent
         source: {
             if (!iconSource) return "";
@@ -88,45 +98,66 @@ Rectangle {
                 return iconSource;
             }
             
-            // 로컬 경로 사용 (URL 형식 문제 수정)
             return "../../assets/icons/" + iconSource + ".svg";
         }
         width: iconSize
         height: iconSize
-        sourceSize.width: iconSize * 1.5 // 더 선명한 렌더링을 위해 더 큰 소스 크기 사용
-        sourceSize.height: iconSize * 1.5
+        sourceSize.width: iconSize * 2
+        sourceSize.height: iconSize * 2
         fillMode: Image.PreserveAspectFit
-        opacity: enabled ? iconOpacity : 0.5
+        visible: false // Hide the original image, we'll display the colored version
     }
     
-    // 아이콘 색상 필터 (간소화된 방식)
-    Rectangle {
-        anchors.fill: icon
-        color: "transparent"
-        visible: ThemeManager.isDarkTheme
+    // Color overlay using Canvas
+    Canvas {
+        id: colorOverlay
+        anchors.centerIn: parent
+        width: iconImage.width
+        height: iconImage.height
+        visible: iconImage.status === Image.Ready
         
-        Rectangle {
-            anchors.fill: parent
-            color: root.currentIconColor
-            opacity: 0.8
-            visible: icon.status === Image.Ready
+        // Update when icon color changes
+        onPaint: {
+            var ctx = getContext("2d");
+            ctx.clearRect(0, 0, width, height);
+            
+            if (iconImage.status === Image.Ready) {
+                // Draw the icon
+                ctx.globalCompositeOperation = "source-over";
+                ctx.drawImage(iconImage, 0, 0, width, height);
+                
+                // Apply color overlay
+                ctx.globalCompositeOperation = "source-in";
+                ctx.fillStyle = currentIconColor;
+                ctx.fillRect(0, 0, width, height);
+            }
+        }
+        
+        // Update canvas when color or image changes
+        Connections {
+            target: root
+            function onCurrentIconColorChanged() { colorOverlay.requestPaint(); }
+        }
+        
+        Connections {
+            target: iconImage
+            function onStatusChanged() {
+                if (iconImage.status === Image.Ready) {
+                    colorOverlay.requestPaint();
+                }
+            }
+        }
+        
+        // Smooth scaling when hovered
+        scale: root.hovered ? 1.1 : 1.0
+        Behavior on scale {
+            NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
         }
     }
     
-    // 아이콘 텍스트 (아이콘 로드 실패 시 대체)
-    Text {
-        id: iconText
-        anchors.centerIn: parent
-        text: iconSource ? iconSource[0].toUpperCase() : "?"
-        visible: icon.status !== Image.Ready
-        color: root.currentIconColor
-        font.pixelSize: iconSize
-        font.bold: true
-    }
-    
-    // 마우스 이벤트 처리
+    // Mouse area for interaction
     MouseArea {
-        id: mouseArea
+        id: area
         anchors.fill: parent
         hoverEnabled: true
         
@@ -143,42 +174,38 @@ Rectangle {
         }
     }
     
-    // 툴팁
+    // Tooltip
     Rectangle {
         id: toolTip
         visible: showTip
         opacity: showTip ? 1.0 : 0
-        color: ThemeManager.panelColor
-        radius: 4
-        width: toolTipText.width + 16
-        height: toolTipText.height + 10
+        color: ThemeManager.isDarkTheme ? Qt.rgba(0.15, 0.15, 0.15, 0.95) : Qt.rgba(0.95, 0.95, 0.95, 0.95)
+        radius: 3
+        width: toolTipText.width + 12
+        height: toolTipText.height + 8
         
-        // 툴팁 위치는 버튼 아래
+        // Position tooltip below button
         x: (parent.width - width) / 2
         y: parent.height + 5
         
-        // 경계선
+        // Add subtle border
         border.width: 1
-        border.color: ThemeManager.borderColor
+        border.color: ThemeManager.isDarkTheme ? Qt.rgba(0.3, 0.3, 0.3, 0.5) : Qt.rgba(0.7, 0.7, 0.7, 0.5)
         
-        // 툴팁 텍스트
+        // Tooltip text
         Text {
             id: toolTipText
             text: root.tipText
             anchors.centerIn: parent
             color: ThemeManager.textColor
-            font.pixelSize: 12
+            font.pixelSize: 11
+            font.family: ThemeManager.defaultFont
         }
         
-        // 애니메이션
+        // Animation
         Behavior on opacity {
-            NumberAnimation { duration: 200 }
+            NumberAnimation { duration: 150 }
         }
-    }
-    
-    // 전환 애니메이션
-    Behavior on color {
-        ColorAnimation { duration: 150 }
     }
     
     Component.onCompleted: {

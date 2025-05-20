@@ -3,38 +3,38 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 
-// 조건부 import - MPV와 TimelineSync 지원 확인
-// 사용 전에 C++에서 hasMpvSupport 컨텍스트 프로퍼티 설정 필요
-import "../utils" as Utils
+// Conditional import - check MPV and TimelineSync support
+// Requires hasMpvSupport context property to be set from C++ first
+import "../utils"
 
-// MPV 비디오 플레이어를 포함하는 영역
+// Area containing the MPV video player
 Item {
     id: root
     
-    // 비디오 관련 속성
+    // Video related properties
     property int frame: 0
     property int frames: 0
     property string filename: ""
     property real fps: 24.0
     property bool isPlaying: false
     
-    // 시그널 (주의: 중복을 피하기 위해 네이밍 변경)    
+    // Signals (Note: renamed to avoid duplicates)    
     signal onFrameChangedEvent(int frame)
     signal onTotalFramesChangedEvent(int frames)
     signal onFileChangedEvent(string filename)
     signal onFpsChangedEvent(real fps)
     
-    // MPV 지원 여부 (C++에서 rootContext에 설정)
+    // MPV support flag (set from C++ rootContext)
     property bool mpvSupported: typeof hasMpvSupport !== "undefined" ? hasMpvSupport : false
     
-    // 다크 테마 배경
+    // Dark theme background
     Rectangle {
         anchors.fill: parent
-        color: "#121212" // 완전 검은색 배경
-        z: -1 // MPV 플레이어보다 뒤에 위치
+        color: ThemeManager.backgroundColor
+        z: -1 // Position behind MPV player
     }
     
-    // 메시지 오버레이 (에러 등 표시)
+    // Message overlay (for errors, etc.)
     Rectangle {
         anchors.centerIn: parent
         width: messageText.width + 40
@@ -47,11 +47,12 @@ Item {
             id: messageText
             anchors.centerIn: parent
             color: "white"
-            font.pixelSize: 14
+            font.pixelSize: ThemeManager.normalFontSize
+            font.family: ThemeManager.defaultFont
             text: ""
         }
         
-        // 자동으로 메시지 숨기기
+        // Automatically hide message
         Timer {
             id: messageTimer
             interval: 3000
@@ -60,11 +61,11 @@ Item {
         }
     }
     
-    // MPV 지원이 없을 때 표시할 플레이스홀더
+    // Placeholder when MPV support is unavailable
     Rectangle {
         id: placeholderRect
         anchors.fill: parent
-        color: "#121212"
+        color: ThemeManager.backgroundColor
         visible: !mpvSupported
         
         Column {
@@ -74,15 +75,17 @@ Item {
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "MPV support not available"
-                color: "white"
-                font.pixelSize: 18
+                color: ThemeManager.textColor
+                font.pixelSize: ThemeManager.largeFontSize
+                font.family: ThemeManager.defaultFont
             }
             
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Add HAVE_MPV definition during build"
-                color: "#aaaaaa"
-                font.pixelSize: 14
+                color: ThemeManager.secondaryTextColor
+                font.pixelSize: ThemeManager.normalFontSize
+                font.family: ThemeManager.defaultFont
             }
             
             Button {
@@ -93,7 +96,7 @@ Item {
         }
     }
     
-    // 파일 다이얼로그
+    // File dialog
     FileDialog {
         id: fileDialog
         title: "Open Video File"
@@ -107,7 +110,7 @@ Item {
         }
     }
     
-    // MPV 지원이 있을 때 동적으로 생성되는 컴포넌트
+    // MPV component loaded dynamically when supported
     Loader {
         id: mpvLoader
         anchors.fill: parent
@@ -115,19 +118,19 @@ Item {
         sourceComponent: mpvSupported ? mpvComponent : null
     }
     
-    // MPV 컴포넌트 정의 - 조건부 로드
+    // MPV component definition - conditionally loaded
     Component {
         id: mpvComponent
         
         Item {
-            // MPV 및 TimelineSync는 import 가능한 경우에만 사용
+            // MPV and TimelineSync are only used when importable
             property var mpvPlayer: null
             property var timelineSync: null
             
             Component.onCompleted: {
-                // 동적으로 컴포넌트 생성 시도
+                // Attempt to create components dynamically
                 try {
-                    // MPV 컴포넌트 동적 생성 시도
+                    // Try to create MPV component dynamically
                     var component = Qt.createQmlObject(
                         'import mpv 1.0; MpvObject { anchors.fill: parent }',
                         this,
@@ -138,11 +141,11 @@ Item {
                         mpvPlayer = component;
                         console.log("MPV component created successfully");
                         
-                        // 이벤트 연결
+                        // Connect events
                         connectMpvEvents();
                     }
                     
-                    // TimelineSync 동적 생성 시도
+                    // Try to create TimelineSync dynamically
                     var syncComponent = Qt.createQmlObject(
                         'import app.sync 1.0; TimelineSync {}',
                         this,
@@ -159,12 +162,12 @@ Item {
                 }
             }
             
-            // MPV 이벤트 연결 함수
+            // Function to connect MPV events
             function connectMpvEvents() {
                 if (!mpvPlayer) return;
                 
                 mpvPlayer.positionChanged.connect(function(position) {
-                    // 현재 프레임 업데이트
+                    // Update current frame
                     if (position >= 0 && root.fps > 0) {
                         var frame = Math.round(position * root.fps);
                         root.frame = frame;
@@ -173,7 +176,7 @@ Item {
                 });
                 
                 mpvPlayer.durationChanged.connect(function(duration) {
-                    // 총 프레임 수 업데이트
+                    // Update total frame count
                     if (duration > 0 && root.fps > 0) {
                         var totalFrames = Math.ceil(duration * root.fps);
                         root.frames = totalFrames;
@@ -191,7 +194,7 @@ Item {
                         root.fps = fps;
                         root.onFpsChangedEvent(fps);
                         
-                        // FPS가 변경되면 총 프레임 수도 업데이트
+                        // When FPS changes, update total frame count as well
                         if (mpvPlayer.duration > 0) {
                             var totalFrames = Math.ceil(mpvPlayer.duration * root.fps);
                             root.frames = totalFrames;
@@ -203,13 +206,13 @@ Item {
         }
     }
     
-    // 메시지 표시
+    // Show message
     function showMessage(text) {
         messageText.text = text;
         messageTimer.restart();
     }
     
-    // 파일 열기 다이얼로그
+    // Open file dialog
     function openFile() {
         if (mpvSupported) {
             fileDialog.open()
@@ -218,7 +221,7 @@ Item {
         }
     }
     
-    // 파일 불러오기
+    // Load file
     function loadFile(path) {
         if (!mpvSupported) {
             showMessage("Cannot load file: MPV support not available");
@@ -239,7 +242,7 @@ Item {
         }
     }
     
-    // 재생/일시정지 전환
+    // Toggle play/pause
     function playPause() {
         if (!mpvSupported) {
             showMessage("Cannot play/pause: MPV support not available");
@@ -252,7 +255,7 @@ Item {
         }
     }
     
-    // 프레임 단위 이동
+    // Step forward by frames
     function stepForward(frames) {
         if (frames === undefined)
             frames = 1;
@@ -272,6 +275,7 @@ Item {
         }
     }
 
+    // Step backward by frames
     function stepBackward(frames) {
         if (frames === undefined)
             frames = 1;
@@ -291,7 +295,7 @@ Item {
         }
     }
     
-    // 특정 프레임으로 이동
+    // Seek to specific frame
     function seekToFrame(frame) {
         if (!mpvSupported) {
             showMessage("Cannot seek: MPV support not available");
@@ -305,7 +309,18 @@ Item {
         }
     }
     
-    // 비디오 필터 추가
+    // Toggle scopes
+    function toggleScopes() {
+        if (!mpvSupported) {
+            showMessage("Cannot toggle scopes: MPV support not available");
+            return;
+        }
+        
+        // This is a placeholder - actual implementation depends on ScopeWindow
+        showMessage("Scopes toggled");
+    }
+    
+    // Add video filter
     function addVideoFilter(filter) {
         if (!mpvSupported) {
             showMessage("Cannot add filter: MPV support not available");
@@ -329,7 +344,7 @@ Item {
         return false;
     }
     
-    // 비디오 필터 제거
+    // Remove video filter
     function removeVideoFilter(filter) {
         if (!mpvSupported) {
             showMessage("Cannot remove filter: MPV support not available");
@@ -353,7 +368,7 @@ Item {
         return false;
     }
     
-    // 키보드 포커스
+    // Keyboard focus
     focus: true
     Keys.onSpacePressed: playPause()
     Keys.onLeftPressed: stepBackward(1)

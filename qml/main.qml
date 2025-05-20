@@ -19,7 +19,7 @@ ApplicationWindow {
     minimumWidth: 640
     minimumHeight: 480
     title: qsTr("HYPER-PLAYER")
-    color: "#161616"  // Dark theme background
+    color: Utils.ThemeManager.backgroundColor
     
     // Global properties
     property bool mpvSupported: hasMpvSupport
@@ -31,6 +31,10 @@ ApplicationWindow {
     property string currentTimecode: "00:00:00:00"
     property bool magnifierActive: false
     property bool scopesPanelVisible: false // legacy, kept for compatibility
+    
+    // Access theme properties from ThemeManager
+    property alias themeManager: themeManagerAlias
+    Utils.ThemeManager { id: themeManagerAlias }
     
     // Style constants - professional dark theme like DJV
     readonly property color accentColor: "#0078D7"  // Professional blue
@@ -64,10 +68,10 @@ ApplicationWindow {
         "fullscreen_exit": "↙"
     })
     
-    // 디버그용 경계선 표시 활성화
-    property bool showDebugBorders: true
+    // Debug border display
+    property bool showDebugBorders: false
     
-    // 레이아웃 디버그 함수
+    // Debug layout function
     function debugBorder(color) {
         if (showDebugBorders) {
             return Qt.createQmlObject(
@@ -84,16 +88,16 @@ ApplicationWindow {
         return null;
     }
     
-    // 전체 화면 레이아웃을 단순화
+    // Main content layout
     Rectangle {
         id: mainContentArea
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: statusBar.top
-        color: "#161616"
+        color: Utils.ThemeManager.backgroundColor
         
-        // 디버그용 경계선
+        // Debug border
         Rectangle {
             visible: showDebugBorders
             anchors.fill: parent
@@ -103,18 +107,23 @@ ApplicationWindow {
             z: 100
         }
         
-        // 비디오 영역과 설정 패널을 나란히 배치
+        // Video area and settings panel side by side
         SplitView {
             anchors.fill: parent
             orientation: Qt.Horizontal
+            handle: Rectangle {
+                implicitWidth: 1
+                implicitHeight: parent.height
+                color: Utils.ThemeManager.borderColor
+            }
             
-            // 비디오 영역
+            // Video area
             Item {
                 id: videoContainer
                 SplitView.fillWidth: true
                 SplitView.minimumWidth: 400
                 
-                // 디버그용 경계선
+                // Debug border
                 Rectangle {
                     visible: showDebugBorders
                     anchors.fill: parent
@@ -122,51 +131,42 @@ ApplicationWindow {
                     border.width: 2
                     border.color: "green"
                     z: 100
-            }
+                }
             
-                // 비디오 영역 컴포넌트
-            VideoArea {
-                id: videoArea
+                // Video area component
+                VideoArea {
+                    id: videoArea
                     anchors.fill: parent
                 
-                    // 동기화 속성
-                currentMediaFile: root.currentMediaFile
-                currentFrame: root.currentFrame
-                totalFrames: root.totalFrames
-                fps: root.fps
-                currentTimecode: root.currentTimecode
+                    // Sync properties
+                    currentMediaFile: root.currentMediaFile
+                    currentFrame: root.currentFrame
+                    totalFrames: root.totalFrames
+                    fps: root.fps
+                    currentTimecode: root.currentTimecode
                 }
             }
             
-            // 설정 패널
+            // Settings panel
             Rectangle {
                 id: settingsPanel
-                color: panelColor
+                color: Utils.ThemeManager.panelColor
                 SplitView.preferredWidth: panelWidth
                 visible: settingsPanelVisible
                 
-                // 디버그용 경계선
-                                        Rectangle {
+                // Debug border
+                Rectangle {
                     visible: showDebugBorders
-                                                anchors.fill: parent
+                    anchors.fill: parent
                     color: "transparent"
                     border.width: 2
                     border.color: "blue"
                     z: 100
                 }
                 
-                // 설정 패널 컨텐츠
+                // Settings panel contents
                 SettingsPanel {
-                                        anchors.fill: parent
-                    accentColor: root.accentColor
-                    secondaryColor: root.secondaryColor
-                    textColor: root.textColor
-                    panelColor: root.panelColor
-                    controlBgColor: root.controlBgColor
-                    darkControlColor: root.darkControlColor
-                    borderColor: root.borderColor
-                    mainFont: root.mainFont
-                    monoFont: root.monoFont
+                    anchors.fill: parent
                     mpvPlayer: videoArea.mpvPlayer
                     fps: root.fps
                 }
@@ -174,24 +174,20 @@ ApplicationWindow {
         }
     }
     
-    // 상태 바
+    // Status bar
     StatusBar {
         id: statusBar
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: bottomControlBar.top
-        height: 24  // 고정 높이
-        visible: true  // 항상 표시
+        height: 24  // Fixed height
+        visible: true  // Always visible
         
         currentMediaFile: root.currentMediaFile
         currentFrame: root.currentFrame
         totalFrames: root.totalFrames
-        mainFont: root.mainFont
-        monoFont: root.monoFont
-        borderColor: root.borderColor
-        darkControlColor: root.darkControlColor
         
-        // 디버그용 경계선
+        // Debug border
         Rectangle {
             visible: showDebugBorders
             anchors.fill: parent
@@ -202,22 +198,22 @@ ApplicationWindow {
         }
     }
     
-    // 하단 컨트롤 바
+    // Bottom control bar
     ControlBar {
         id: bottomControlBar
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: 130  // 타임라인 포함한 높이 증가 (90+40)
+        height: 130  // Increased height to include timeline (90+40)
         
-        // 속성 연결
+        // Property connections
         mpvObject: videoArea.mpvPlayer
         currentFrame: root.currentFrame
         totalFrames: root.totalFrames
         fps: root.fps
         mpvSupported: root.mpvSupported
         
-        // 디버그용 경계선
+        // Debug border
         Rectangle {
             visible: showDebugBorders
             anchors.fill: parent
@@ -227,11 +223,11 @@ ApplicationWindow {
             z: 100
         }
         
-        // 타임라인 바를 컨트롤바의 timelineArea에 배치
+        // Timeline bar in control bar's timeline area
         FrameTimelineBar {
             id: timelineBar
-            anchors.fill: parent.children[0]  // timelineArea에 맞춤
-            visible: true  // 항상 표시
+            anchors.fill: parent.children[0]  // Fit to timeline area
+            visible: true  // Always visible
             
             mpvObject: videoArea.mpvPlayer
             
@@ -240,7 +236,7 @@ ApplicationWindow {
             fps: root.fps
             isPlaying: videoArea.mpvPlayer ? videoArea.mpvPlayer.isPlaying : false
             
-            // 디버그용 경계선
+            // Debug border
             Rectangle {
                 visible: showDebugBorders
                 anchors.fill: parent
@@ -249,286 +245,127 @@ ApplicationWindow {
                 border.color: "cyan"
                 z: 100
             }
-            
-            onSeekRequested: function(frame) {
-                if (videoArea.mpvPlayer) {
-                    videoArea.mpvPlayer.pause();
-                    videoArea.mpvPlayer.seekToFrame(frame);
-                    currentFrame = frame;
-                    updateFrameInfo();
-                }
-            }
         }
         
-        onOpenFileRequested: openOsFileExplorer()
-        onToggleSettingsPanelRequested: settingsPanelVisible = !settingsPanelVisible
-        onToggleFullscreenRequested: function() {
-                                if (root.visibility === Window.FullScreen) {
-                                    root.showNormal();
-                                } else {
-                                    root.showFullScreen();
-                                }
-                            }
+        // Connect control bar signals
+        onOpenFileRequested: {
+            videoArea.openFile()
+        }
+        
+        onToggleSettingsPanelRequested: {
+            settingsPanelVisible = !settingsPanelVisible
+        }
+        
         onTakeScreenshotRequested: {
             if (videoArea.mpvPlayer) {
-                videoArea.mpvPlayer.command(["screenshot"]);
+                videoArea.mpvPlayer.screenshot()
             }
         }
-        onToggleScopesRequested: {
-            scopeWindow.visible = !scopeWindow.visible
-            scopesPanelVisible = scopeWindow.visible
-        }
-        onFrameBackwardRequested: function(frames) {
-            goBackFrames(frames);
-        }
-        onFrameForwardRequested: function(frames) {
-            goForwardFrames(frames);
-        }
-    }
-    
-    // 파일 시스템 열기 함수
-    function openOsFileExplorer() {
-        console.log("파일 열기 요청됨");
         
-        // 실제 시스템 파일 탐색기를 여는 MPV 명령 실행
-        try {
-            // 네이티브 파일 다이얼로그를 열기 위한 스크립트 메시지 전송
-            if (videoArea && videoArea.mpvPlayer) {
-                videoArea.mpvPlayer.command(["script-message-to", "ipc", "open-file-dialog"]);
-                
-                // 또는 다른 방법으로 직접 MPV 명령어 실행
-                // videoArea.mpvPlayer.command(["script-binding", "console/enable"]);
-                videoArea.mpvPlayer.command(["script-binding", "open-file-dialog"]);
+        onToggleFullscreenRequested: {
+            if (root.visibility === Window.FullScreen) {
+                root.showNormal()
             } else {
-                console.error("MPV 플레이어 인스턴스를 찾을 수 없음");
-                
-                // 대체 방법: 샘플 비디오 로드
-                var testFilePath = "sample_video.mp4";
-                console.log("대체 방식: 테스트 영상 로드: " + testFilePath);
-                currentMediaFile = testFilePath;
-                
-                if (videoArea && videoArea.mpvPlayer) {
-                    videoArea.mpvPlayer.command(["loadfile", testFilePath]);
-                }
-                
-                currentFrame = 0;
-                updateFrameInfo();
-            }
-        } catch (e) {
-            console.error("파일 탐색기 열기 실패:", e);
-        }
-    }
-    
-    // 파일 드롭 지원
-    DropArea {
-                        anchors.fill: parent
-        onDropped: function(drop) {
-            if (drop.hasUrls) {
-                var filePath = drop.urls[0];
-                console.log("File dropped:", filePath);
-                playMedia(filePath);
-                    }
-                }
-            }
-            
-    // 컬러피커 다이얼로그
-    ColorPickerDialog {
-        id: colorPickerDialog
-        anchors.centerIn: parent
-        
-        controlBgColor: root.controlBgColor
-        borderColor: root.borderColor
-        textColor: root.textColor
-        mainFont: root.mainFont
-        monoFont: root.monoFont
-        
-        onColorSelected: function(color) {
-            console.log("Selected color:", color);
-        }
-    }
-    
-    // 확대 도구
-    MagnifierTool {
-        id: magnifierTool
-        visible: magnifierActive
-        x: (parent.width - width) / 2
-        y: (parent.height - height) / 2
-    }
-
-    ScopeWindow {
-        id: scopeWindow
-        mpvPlayer: videoArea.mpvPlayer
-    }
-    
-    // 초기화
-    Component.onCompleted: {
-        console.log("앱 초기화 완료");
-        updateFrameInfo();
-        
-        // 초기 디버그 정보 출력
-        console.log("MPV 지원 여부:", mpvSupported);
-        
-        // MPV 객체 정보
-        if (videoArea && videoArea.mpvPlayer) {
-            console.log("MPV 플레이어 객체가 생성됨");
-        } else {
-            console.log("MPV 플레이어 객체가 생성되지 않음");
-        }
-    }
-    
-    // 키보드 단축키
-    Item {
-        focus: true
-        Keys.onPressed: function(event) {
-            if (mpvSupported && videoArea.mpvPlayer) {
-                if (event.key === Qt.Key_Space) {
-                    videoArea.mpvPlayer.playPause();
-                    event.accepted = true;
-                } else if (event.key === Qt.Key_Escape) {
-                    if (root.visibility === Window.FullScreen) {
-                        root.showNormal();
-                    } else {
-                        Qt.quit();
-                    }
-                    event.accepted = true;
-                } else if (event.key === Qt.Key_F) {
-                    if (root.visibility === Window.FullScreen) {
-                        root.showNormal();
-                    } else {
-                        root.showFullScreen();
-                    }
-                    event.accepted = true;
-                } else if (event.key === Qt.Key_Left) {
-                    goBackFrames(1);
-                    event.accepted = true;
-                } else if (event.key === Qt.Key_Right) {
-                    goForwardFrames(1);
-                    event.accepted = true;
-                } else if (event.key === Qt.Key_O && (event.modifiers & Qt.ControlModifier)) {
-                    // Ctrl+O 단축키로 파일 열기
-                    openOsFileExplorer();
-                    event.accepted = true;
-                }
+                root.showFullScreen()
             }
         }
-    }
-    
-    // 미디어 재생 함수
-    function playMedia(filePath) {
-        if (!mpvSupported || !videoArea.mpvPlayer) return;
         
-        // MediaFunctions 사용
-        let result = Utils.MediaFunctions.playMedia(videoArea.mpvPlayer, filePath, currentMediaFile);
-        if (result) {
-            // 파일 경로 업데이트
-            currentMediaFile = result;
-        
-            // 재생 후 첫 프레임을 보여주기 위해 잠시 재생했다가 일시정지
-            videoArea.mpvPlayer.play();
-            playPauseTimer.restart();
-        }
-    }
-    
-    // 데모 비디오 재생
-    function playDemoVideo(demoFile) {
-        // 샘플 비디오 로드
-        console.log("데모 비디오 재생:", demoFile);
-        
-        // 기본값 설정
-        currentMediaFile = demoFile || "sample_video.mp4";
-        fps = 24.0;
-        totalFrames = 1440; // 24fps에서 1분
-        currentFrame = 0;
-        
-        // MPV 플레이어로 직접 로드
-        if (videoArea.mpvPlayer) {
-            try {
-                console.log("MPV 플레이어에 직접 로드중...");
-                videoArea.mpvPlayer.command(["loadfile", currentMediaFile]);
-        videoArea.mpvPlayer.play();
-            } catch (e) {
-                console.error("비디오 로드 실패:", e);
-            }
-        } else {
-            console.log("MPV 플레이어가 초기화되지 않음");
+        onToggleScopesRequested: {
+            videoArea.toggleScopes()
         }
         
-        // UI 업데이트
-        updateFrameInfo();
-    }
-    
-    // 미디어 로드 타이머
-    Timer {
-        id: playPauseTimer
-        interval: 100
-        repeat: false
-        onTriggered: {
+        onFrameBackwardRequested: function(frames) {
             if (videoArea.mpvPlayer) {
-                videoArea.mpvPlayer.pause();
-                updateFrameInfo();
+                videoArea.mpvPlayer.frameStep(-frames)
+            }
+        }
+        
+        onFrameForwardRequested: function(frames) {
+            if (videoArea.mpvPlayer) {
+                videoArea.mpvPlayer.frameStep(frames)
             }
         }
     }
     
-    // 프레임 정보 업데이트
-    function updateFrameInfo() {
-        if (videoArea.mpvPlayer) {
-            let result = Utils.MediaFunctions.updateFrameInfo(
-                videoArea.mpvPlayer, 
-                fps, 
-                totalFrames, 
-                currentFrame, 
-                currentTimecode
-            );
-                
-            if (result) {
-                fps = result.fps;
-                totalFrames = result.totalFrames;
-                currentFrame = result.currentFrame;
-                currentTimecode = result.currentTimecode;
+    // Magnifier overlay
+    MagnifierOverlay {
+        id: magnifier
+        anchors.fill: mainContentArea
+        visible: magnifierActive && videoArea.mpvPlayer && videoArea.mpvPlayer.hasVideo
+        mpvObject: videoArea.mpvPlayer
+        z: 10 // Above video but below dialogs
+    }
+    
+    // Keyboard shortcuts
+    Shortcut {
+        sequence: "Space"
+        onActivated: {
+            if (videoArea.mpvPlayer) {
+                videoArea.mpvPlayer.playPause()
             }
         }
     }
     
-    // 프레임 탐색 함수
-    function goBackFrames(numFrames) {
-        Utils.MediaFunctions.goBackFrames(videoArea.mpvPlayer, fps, numFrames);
-        frameUpdateTimer.restart();
+    Shortcut {
+        sequence: "Left"
+        onActivated: bottomControlBar.frameBackwardRequested(1)
     }
     
-    function goForwardFrames(numFrames) {
-        Utils.MediaFunctions.goForwardFrames(videoArea.mpvPlayer, fps, numFrames);
-        frameUpdateTimer.restart();
+    Shortcut {
+        sequence: "Right"
+        onActivated: bottomControlBar.frameForwardRequested(1)
     }
     
-    // 프레임 업데이트 타이머
-    Timer {
-        id: frameUpdateTimer
-        interval: 16
-        repeat: false
-        onTriggered: {
-            try {
-                updateFrameInfo();
-            } catch (e) {
-                console.error("프레임 업데이트 오류:", e);
+    Shortcut {
+        sequence: "Ctrl+Left"
+        onActivated: bottomControlBar.frameBackwardRequested(10)
+    }
+    
+    Shortcut {
+        sequence: "Ctrl+Right"
+        onActivated: bottomControlBar.frameForwardRequested(10)
+    }
+    
+    Shortcut {
+        sequence: "Home"
+        onActivated: {
+            if (videoArea.mpvPlayer) {
+                videoArea.mpvPlayer.setProperty("time-pos", 0)
             }
         }
     }
     
-    // 위치 업데이트 타이머
-    Timer {
-        id: qmlGlobalTimer
-        interval: 33
-        running: videoArea.mpvPlayer && videoArea.mpvPlayer.filename !== ""
-        repeat: true
-        onTriggered: {
-            try {
-                if (videoArea.mpvPlayer && videoArea.mpvPlayer.filename && videoArea.mpvPlayer.filename !== "") {
-                    updateFrameInfo();
-    }
-            } catch (e) {
-                console.error("위치 업데이트 오류:", e);
-} 
+    Shortcut {
+        sequence: "End"
+        onActivated: {
+            if (videoArea.mpvPlayer && videoArea.mpvPlayer.duration) {
+                videoArea.mpvPlayer.setProperty("time-pos", videoArea.mpvPlayer.duration - (1/fps))
+            }
         }
+    }
+    
+    Shortcut {
+        sequence: "F"
+        onActivated: bottomControlBar.toggleFullscreenRequested()
+    }
+    
+    Shortcut {
+        sequence: "S"
+        onActivated: bottomControlBar.takeScreenshotRequested()
+    }
+    
+    Shortcut {
+        sequence: "M"
+        onActivated: magnifierActive = !magnifierActive
+    }
+    
+    Shortcut {
+        sequence: "Ctrl+S"
+        onActivated: bottomControlBar.toggleScopesRequested()
+    }
+    
+    Shortcut {
+        sequence: "T"
+        onActivated: themeManager.toggleTheme()
     }
 } 

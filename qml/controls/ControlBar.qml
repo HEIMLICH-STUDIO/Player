@@ -1,13 +1,14 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import "../components"
+import "../ui"
+import "../utils"
 
 // Bottom control bar for media playback
 Rectangle {
     id: controlBar
     height: 90
-    color: "#1E1E1E" // Control background color
+    color: ThemeManager.panelColor
     
     // Properties
     property var mpvObject: null  // Reference to MpvObject
@@ -25,13 +26,13 @@ Rectangle {
     signal frameBackwardRequested(int frames)
     signal frameForwardRequested(int frames)
     
-    // Timeline area - 타임라인 바가 들어갈 자리 (외부에서 채워짐)
+    // Timeline area for external component
     Item {
         id: timelineArea
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: 40  // 타임라인 바 높이
+        height: 40  // Timeline height
     }
     
     // Add a subtle top border
@@ -40,7 +41,7 @@ Rectangle {
         anchors.top: timelineArea.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        color: "#333333" // Border color
+        color: ThemeManager.borderColor
     }
     
     // Main content layout
@@ -68,9 +69,9 @@ Rectangle {
                 RowLayout {
                     Text {
                         text: fps.toFixed(2) + " fps"
-                        color: "#FFFFFF" // Text color
-                        font.pixelSize: 10
-                        font.family: "Consolas"
+                        color: ThemeManager.secondaryTextColor
+                        font.pixelSize: ThemeManager.smallFontSize
+                        font.family: ThemeManager.monoFont
                     }
                 }
                 
@@ -80,9 +81,10 @@ Rectangle {
                 RowLayout {
                     spacing: 8
                     
-                    MediaControlButton {
+                    IconButton {
                         iconSource: "rewind"
                         iconSize: 16
+                        tipText: "Go to Start"
                         onClicked: {
                             if (mpvObject) {
                                 mpvObject.setProperty("time-pos", 0);
@@ -90,29 +92,32 @@ Rectangle {
                         }
                     }
                     
-                    MediaControlButton {
+                    IconButton {
                         iconSource: "frame_backward"
                         iconSize: 16
+                        tipText: "Back 10 Frames"
                         onClicked: {
                             frameBackwardRequested(10);
                         }
                     }
                     
-                    MediaControlButton {
+                    IconButton {
                         iconSource: "backward"
                         iconSize: 16
+                        tipText: "Previous Frame"
                         onClicked: {
                             frameBackwardRequested(1);
                         }
                     }
                     
-                    MediaControlButton {
+                    IconButton {
                         iconSource: mpvObject && mpvObject.pause ? "play" : "pause"
-                        iconSize: 18
-                        textColorNormal: "#FFFFFF"
-                        textColorHover: "#0078D7" // Accent color
-                        implicitWidth: 36
-                        implicitHeight: 36
+                        iconSize: 20
+                        width: 40
+                        height: 40
+                        tipText: mpvObject && mpvObject.pause ? "Play" : "Pause"
+                        textColorNormal: ThemeManager.iconColor
+                        textColorHover: ThemeManager.accentColor
                         onClicked: {
                             if (mpvObject) {
                                 mpvObject.playPause();
@@ -122,25 +127,28 @@ Rectangle {
                         }
                     }
                     
-                    MediaControlButton {
+                    IconButton {
                         iconSource: "forward"
                         iconSize: 16
+                        tipText: "Next Frame"
                         onClicked: {
                             frameForwardRequested(1);
                         }
                     }
                     
-                    MediaControlButton {
+                    IconButton {
                         iconSource: "frame_forward"
                         iconSize: 16
+                        tipText: "Forward 10 Frames"
                         onClicked: {
                             frameForwardRequested(10);
                         }
                     }
                     
-                    MediaControlButton {
+                    IconButton {
                         iconSource: "fast_forward"
                         iconSize: 16
+                        tipText: "Go to End"
                         onClicked: {
                             if (mpvObject && mpvObject.duration) {
                                 // Go to last frame
@@ -156,54 +164,49 @@ Rectangle {
                 RowLayout {
                     spacing: 6
                     
-                    TransparentButton {
-                        useIcon: true
+                    IconButton {
                         iconSource: "folder"
                         iconSize: 16
-                        textColorNormal: "#FFFFFF" // Text color
-                        implicitWidth: 28
-                        implicitHeight: 28
+                        tipText: "Open File"
+                        width: 32
+                        height: 32
                         onClicked: openFileRequested()
                     }
                     
-                    TransparentButton {
-                        useIcon: true
+                    IconButton {
                         iconSource: "settings"
                         iconSize: 16
-                        textColorNormal: "#FFFFFF" // Text color
-                        implicitWidth: 28
-                        implicitHeight: 28
+                        tipText: "Toggle Settings"
+                        width: 32
+                        height: 32
                         onClicked: toggleSettingsPanelRequested()
                     }
                     
-                    TransparentButton {
-                        useIcon: true
+                    IconButton {
                         iconSource: "screenshot"
                         iconSize: 16
-                        textColorNormal: "#FFFFFF" // Text color
-                        implicitWidth: 28
-                        implicitHeight: 28
+                        tipText: "Take Screenshot"
+                        width: 32
+                        height: 32
                         onClicked: takeScreenshotRequested()
                     }
 
-                    TransparentButton {
-                        useIcon: true
+                    IconButton {
                         iconSource: "scopes"
                         iconSize: 16
-                        textColorNormal: "#FFFFFF" // Text color
-                        implicitWidth: 28
-                        implicitHeight: 28
+                        tipText: "Toggle Scopes"
+                        width: 32
+                        height: 32
                         onClicked: toggleScopesRequested()
                     }
 
-                    TransparentButton {
+                    IconButton {
                         id: fullscreenButton
-                        useIcon: true
-                        iconSource: "fullscreen" // Will be updated from main.qml
+                        iconSource: "fullscreen"
                         iconSize: 16
-                        textColorNormal: "#FFFFFF" // Text color
-                        implicitWidth: 28
-                        implicitHeight: 28
+                        tipText: "Toggle Fullscreen"
+                        width: 32
+                        height: 32
                         onClicked: toggleFullscreenRequested()
                     }
                 }
@@ -217,7 +220,7 @@ Rectangle {
             anchors.right: parent.right
             anchors.bottom: controlsRow.top
             anchors.bottomMargin: 4
-            color: "#333333" // Border color
+            color: ThemeManager.borderColor
             opacity: 0.5
         }
     }

@@ -1,54 +1,57 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Controls
+import "../utils"
 
-// CustomStatusBar for displaying media info and status
+// Status bar showing current media information
 Rectangle {
-    id: customStatusBar
+    id: statusBar
     height: 24
-    color: darkControlColor
-    visible: true
+    color: ThemeManager.panelColor
+    
+    // Border styling
+    Rectangle {
+        height: 1
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        color: ThemeManager.borderColor
+    }
     
     // Properties
     property string currentMediaFile: ""
     property int currentFrame: 0
-    property int totalFrames: 1
-    property color borderColor: "#333333"
-    property color darkControlColor: "#181818"
-    property string mainFont: "Segoe UI"
-    property string monoFont: "Consolas"
+    property int totalFrames: 0
     
-    // Border on top
-    Rectangle {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 1
-        color: borderColor
-    }
-    
-    // Status layout
+    // Layout for status items
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 4
+        anchors.leftMargin: 8
+        anchors.rightMargin: 8
         spacing: 10
         
         // Filename
         Text {
-            text: currentMediaFile ? currentMediaFile.split('/').pop() : "No file loaded"
-            color: "white"
-            font.pixelSize: 12
-            font.family: mainFont
-            elide: Text.ElideMiddle
+            id: fileNameStatus
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+            font.family: ThemeManager.defaultFont
+            font.pixelSize: ThemeManager.smallFontSize
+            color: ThemeManager.secondaryTextColor
+            text: currentMediaFile ? 
+                "File: " + (currentMediaFile.split('/').pop() || currentMediaFile.split('\\').pop()) : 
+                "No file loaded"
+            elide: Text.ElideMiddle
         }
         
         // Frame counter
         Text {
+            id: frameCounter
+            Layout.alignment: Qt.AlignVCenter
+            font.family: ThemeManager.monoFont
+            font.pixelSize: ThemeManager.smallFontSize
+            color: ThemeManager.secondaryTextColor
             text: "Frame: " + currentFrame + " / " + totalFrames
-            color: "white"
-            font.pixelSize: 12
-            font.family: monoFont
         }
     }
 } 

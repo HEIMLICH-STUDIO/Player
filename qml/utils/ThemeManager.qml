@@ -1,93 +1,93 @@
 pragma Singleton
 import QtQuick
 
-// 앱 전체 테마 관리
+// Global app theme manager
 QtObject {
     id: themeManager
     
-    // 테마 모드 - 다시 다크/라이트 모드 지원
-    property string currentTheme: "dark" // "dark" 또는 "light"
+    // Theme mode - dark/light mode support
+    property string currentTheme: "dark" // "dark" or "light"
     readonly property bool isDarkTheme: currentTheme === "dark"
     
-    // 색상 정의 - 더 명확한 대비
-    readonly property color accentColor: isDarkTheme ? "#4499FF" : "#0066CC"
-    readonly property color accentColorHover: isDarkTheme ? "#66AAFF" : "#0077EE"
-    readonly property color accentColorActive: isDarkTheme ? "#3377DD" : "#0055BB"
+    // Professional color definitions - higher contrast
+    readonly property color accentColor: isDarkTheme ? "#00B8FF" : "#0078D4" // Professional blue
+    readonly property color accentColorHover: isDarkTheme ? "#33C9FF" : "#1683DA"
+    readonly property color accentColorActive: isDarkTheme ? "#009DDB" : "#0069BC"
     
-    // 배경색 - 테마에 따라 다른 색상 적용
-    readonly property color backgroundColor: isDarkTheme ? "#121212" : "#F5F5F5"
-    readonly property color panelColor: isDarkTheme ? "#1E1E1E" : "#FFFFFF"
-    readonly property color controlBgColor: isDarkTheme ? "#252525" : "#E5E5E5"
-    readonly property color darkControlColor: isDarkTheme ? "#2A2A2A" : "#D0D0D0"
+    // Background colors - neutral for professional look
+    readonly property color backgroundColor: isDarkTheme ? "#1A1A1A" : "#F0F0F0" // Darker like Nuke
+    readonly property color panelColor: isDarkTheme ? "#232323" : "#FFFFFF" // DaVinci style panels
+    readonly property color controlBgColor: isDarkTheme ? "#2A2A2A" : "#E9E9E9"
+    readonly property color darkControlColor: isDarkTheme ? "#333333" : "#D8D8D8"
     readonly property color dialogColor: isDarkTheme ? "#282828" : "#FFFFFF"
     
-    // 경계선 - 테마에 따라 다른 색상
-    readonly property color borderColor: isDarkTheme ? "#555555" : "#CCCCCC"
+    // Borders - subtle in professional apps
+    readonly property color borderColor: isDarkTheme ? "#3A3A3A" : "#DADADA"
     
-    // 텍스트 색상 - 테마별 설정
-    readonly property color textColor: isDarkTheme ? "#FFFFFF" : "#000000"
-    readonly property color secondaryTextColor: isDarkTheme ? "#CCCCCC" : "#555555"
-    readonly property color disabledTextColor: isDarkTheme ? "#888888" : "#999999"
-    readonly property color linkTextColor: isDarkTheme ? "#66AAFF" : "#0077CC"
+    // Text colors - clean and professional
+    readonly property color textColor: isDarkTheme ? "#EFEFEF" : "#202020"
+    readonly property color secondaryTextColor: isDarkTheme ? "#B0B0B0" : "#505050"
+    readonly property color disabledTextColor: isDarkTheme ? "#707070" : "#9E9E9E"
+    readonly property color linkTextColor: isDarkTheme ? "#00B8FF" : "#0078D4"
     
-    // 아이콘 색상 - 테마별 설정
-    readonly property color iconColor: isDarkTheme ? "#FFFFFF" : "#333333"
+    // Icon colors - clean and flat style
+    readonly property color iconColor: isDarkTheme ? "#DADADA" : "#404040"
     readonly property color iconHoverColor: accentColor
     readonly property color iconActiveColor: accentColorActive
-    readonly property color controlIconColor: isDarkTheme ? "#DDDDDD" : "#444444"
-    readonly property color controlIconHoverColor: isDarkTheme ? "#FFFFFF" : "#222222"
+    readonly property color controlIconColor: isDarkTheme ? "#CCCCCC" : "#505050"
+    readonly property color controlIconHoverColor: isDarkTheme ? "#FFFFFF" : "#303030"
     
-    // 버튼 색상
-    readonly property color buttonColor: isDarkTheme ? "#3c80c0" : "#0066CC"
-    readonly property color buttonHoverColor: isDarkTheme ? "#4488CC" : "#0077DD" 
-    readonly property color buttonPressedColor: isDarkTheme ? "#2a6496" : "#004499"
+    // Button colors - professional flat style
+    readonly property color buttonColor: isDarkTheme ? "#2A78C5" : "#0078D4"
+    readonly property color buttonHoverColor: isDarkTheme ? "#3384D1" : "#1683DA" 
+    readonly property color buttonPressedColor: isDarkTheme ? "#1E6CB9" : "#0069BC"
     readonly property color buttonTextColor: "#FFFFFF"
     
-    // 스크롤바 스타일
-    readonly property color scrollBarColor: isDarkTheme ? "#555555" : "#CCCCCC"
-    readonly property color scrollBarHoverColor: isDarkTheme ? "#777777" : "#AAAAAA"
-    readonly property color scrollBarActiveColor: isDarkTheme ? "#999999" : "#888888"
+    // Scrollbar style - minimal like pro apps
+    readonly property color scrollBarColor: isDarkTheme ? "#4D4D4D" : "#C0C0C0"
+    readonly property color scrollBarHoverColor: isDarkTheme ? "#666666" : "#A0A0A0"
+    readonly property color scrollBarActiveColor: isDarkTheme ? "#808080" : "#808080"
     readonly property color scrollBarBgColor: "transparent"
-    readonly property int scrollBarWidth: 8
-    readonly property int scrollBarRadius: 4
+    readonly property int scrollBarWidth: 6 // Thinner scrollbars
+    readonly property int scrollBarRadius: 3
     
-    // 탭 스타일
-    readonly property color tabBarColor: isDarkTheme ? "#252525" : "#F0F0F0"
-    readonly property color tabButtonColor: isDarkTheme ? "#1E1E1E" : "#F0F0F0"
-    readonly property color tabButtonActiveColor: isDarkTheme ? "#3c80c0" : "#0066CC"
-    readonly property color tabButtonTextColor: isDarkTheme ? "#CCCCCC" : "#333333"
+    // Tab style - cleaner look
+    readonly property color tabBarColor: isDarkTheme ? "#232323" : "#F5F5F5"
+    readonly property color tabButtonColor: isDarkTheme ? "#282828" : "#F0F0F0"
+    readonly property color tabButtonActiveColor: isDarkTheme ? "#00B8FF" : "#0078D4"
+    readonly property color tabButtonTextColor: isDarkTheme ? "#B0B0B0" : "#505050"
     readonly property color tabButtonActiveTextColor: isDarkTheme ? "#FFFFFF" : "#FFFFFF"
-    readonly property color tabContentColor: isDarkTheme ? "#1E1E1E" : "#FFFFFF"
+    readonly property color tabContentColor: isDarkTheme ? "#232323" : "#FFFFFF"
     
-    // 특수 UI 요소 - 테마에 따른 색상
-    readonly property color timelineBackgroundColor: isDarkTheme ? "#1E1E1E" : "#E5E5E5"
-    readonly property color timelineFrameColor: isDarkTheme ? "#555555" : "#AAAAAA"
-    readonly property color timelineMajorFrameColor: isDarkTheme ? "#888888" : "#777777" 
-    readonly property color timelinePlayheadColor: "#FF5555"
+    // Timeline UI elements - professional video editor style
+    readonly property color timelineBackgroundColor: isDarkTheme ? "#232323" : "#E9E9E9"
+    readonly property color timelineFrameColor: isDarkTheme ? "#444444" : "#BBBBBB"
+    readonly property color timelineMajorFrameColor: isDarkTheme ? "#666666" : "#888888" 
+    readonly property color timelinePlayheadColor: "#FF453A" // Apple-inspired playhead
     
-    // 테마 변경 시 로그 출력 (디버깅용)
+    // Debug logging
     onCurrentThemeChanged: {
         console.log("Theme changed to:", currentTheme);
     }
     
-    // 텍스트 크기
+    // Text sizes
     readonly property int smallFontSize: 11
-    readonly property int normalFontSize: 13
-    readonly property int largeFontSize: 15
-    readonly property int titleFontSize: 17
+    readonly property int normalFontSize: 12
+    readonly property int largeFontSize: 14
+    readonly property int titleFontSize: 16
     
-    // 글꼴
+    // Fonts
     readonly property string defaultFont: "Segoe UI"
     readonly property string monoFont: "Consolas"
     
-    // 테마 전환
+    // Theme switching
     function toggleTheme() {
         currentTheme = isDarkTheme ? "light" : "dark"
-        // 설정 저장 (추후 구현)
+        // Save preference (to be implemented)
         // saveThemePreference(currentTheme)
     }
     
-    // 특정 테마로 설정
+    // Set specific theme
     function setTheme(theme) {
         if (theme === "dark" || theme === "light") {
             currentTheme = theme

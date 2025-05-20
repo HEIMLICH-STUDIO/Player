@@ -13,14 +13,49 @@ Window {
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
     visible: false
 
-    // 메인 비디오 플레이어 참조
+    // Reference to main video player
     property var videoArea: null
     property string currentFile: ""
     
-    // 메인 비디오 파일이 변경될 때마다 스코프도 업데이트
+    // Timers for filter application
+    Timer {
+        id: histogramTimer
+        interval: 500
+        repeat: false
+        property var targetMpv: null
+        onTriggered: {
+            if (targetMpv) {
+                try {
+                    targetMpv.command(["vf", "set", "lavfi=histogram"]);
+                    console.log("Histogram filter applied");
+                } catch (e) {
+                    console.error("Failed to apply histogram filter:", e);
+                }
+            }
+        }
+    }
+    
+    Timer {
+        id: vectorscopeTimer
+        interval: 500
+        repeat: false
+        property var targetMpv: null
+        onTriggered: {
+            if (targetMpv) {
+                try {
+                    targetMpv.command(["vf", "set", "lavfi=vectorscope"]);
+                    console.log("Vectorscope filter applied");
+                } catch (e) {
+                    console.error("Failed to apply vectorscope filter:", e);
+                }
+            }
+        }
+    }
+    
+    // Update scopes whenever the main video file changes
     onVideoAreaChanged: {
         if (videoArea) {
-            // 비디오 파일명 변경 감지
+            // Detect video filename changes
             videoArea.onOnFileChangedEvent.connect(function(filename) {
                 if (filename !== "") {
                     currentFile = filename;
@@ -36,12 +71,12 @@ Window {
         }
     }
 
-    // 레이아웃
+    // Layout
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
         
-        // 스코프 컨트롤 영역
+        // Scope controls area
         Rectangle {
             Layout.fillWidth: true
             height: 60
@@ -54,7 +89,7 @@ Window {
 
                 CheckBox {
                     id: histogramCheck
-                    text: qsTr("히스토그램")
+                    text: "Histogram"
                     checked: true
                     
                     contentItem: Text {
@@ -66,7 +101,7 @@ Window {
                     }
                     
                     onCheckedChanged: {
-                        // 히스토그램 뷰 표시/숨김
+                        // Show/hide histogram view
                         if (scopeLoader.item && scopeLoader.item.histogramView) {
                             scopeLoader.item.histogramView.visible = histogramCheck.checked;
                             updateScopes();
@@ -76,7 +111,7 @@ Window {
 
                 CheckBox {
                     id: vectorscopeCheck
-                    text: qsTr("벡터스코프")
+                    text: "Vectorscope"
                     checked: true
                     
                     contentItem: Text {
@@ -88,7 +123,7 @@ Window {
                     }
                     
                     onCheckedChanged: {
-                        // 벡터스코프 뷰 표시/숨김
+                        // Show/hide vectorscope view
                         if (scopeLoader.item && scopeLoader.item.vectorscopeView) {
                             scopeLoader.item.vectorscopeView.visible = vectorscopeCheck.checked;
                             updateScopes();
@@ -98,31 +133,31 @@ Window {
                 
                 Item { Layout.fillWidth: true }
                 
-                // 상태 텍스트
+                // Status text
                 Text {
                     id: statusText
                     color: ThemeManager.textColor
                     font.pixelSize: 12
-                    text: "비디오를 먼저 로드하세요"
+                    text: "Please load a video first"
                     visible: currentFile === ""
                 }
             }
         }
         
-        // 구분선
+        // Divider
         Rectangle {
             Layout.fillWidth: true
             height: 1
             color: ThemeManager.borderColor
         }
         
-        // 스코프 영역
+        // Scopes area
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             color: "#121212"
             
-            // MPV 스코프 로더
+            // MPV scope loader
             Loader {
                 id: scopeLoader
                 anchors.fill: parent
@@ -131,13 +166,13 @@ Window {
                 sourceComponent: Item {
                     id: scopeContainer
                     
-                    // 히스토그램 및 벡터스코프 뷰를 외부에서 접근할 수 있도록 속성 추가
+                    // Properties to access histogram and vectorscope views from outside
                     property alias histogramView: histogramView
                     property alias vectorscopeView: vectorscopeView
                     property alias histogramMpvLoader: histogramMpvLoader
                     property alias vectorscopeMpvLoader: vectorscopeMpvLoader
                     
-                    // 히스토그램 뷰
+                    // Histogram view
                     Rectangle {
                         id: histogramView
                         anchors.top: parent.top
@@ -147,7 +182,7 @@ Window {
                         color: "#121212"
                         visible: histogramCheck.checked
                         
-                        // 히스토그램 MPV 인스턴스
+                        // Histogram MPV instance
                         Loader {
                             id: histogramMpvLoader
                             anchors.fill: parent
@@ -160,7 +195,7 @@ Window {
                                     
                                     Component.onCompleted: {
                                         try {
-                                            // MPV 인스턴스 생성
+                                            // Create MPV instance
                                             var component = Qt.createQmlObject(
                                                 'import mpv 1.0; MpvObject { anchors.fill: parent }',
                                                 this,
@@ -183,14 +218,14 @@ Window {
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.margins: 10
-                            text: "히스토그램"
+                            text: "Histogram"
                             color: "white"
                             font.pixelSize: 14
                             z: 1
                         }
                     }
                     
-                    // 벡터스코프 뷰
+                    // Vectorscope view
                     Rectangle {
                         id: vectorscopeView
                         anchors.top: parent.top
@@ -200,7 +235,7 @@ Window {
                         color: "#121212"
                         visible: vectorscopeCheck.checked
                         
-                        // 벡터스코프 MPV 인스턴스
+                        // Vectorscope MPV instance
                         Loader {
                             id: vectorscopeMpvLoader
                             anchors.fill: parent
@@ -213,7 +248,7 @@ Window {
                                     
                                     Component.onCompleted: {
                                         try {
-                                            // MPV 인스턴스 생성
+                                            // Create MPV instance
                                             var component = Qt.createQmlObject(
                                                 'import mpv 1.0; MpvObject { anchors.fill: parent }',
                                                 this,
@@ -236,7 +271,7 @@ Window {
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.margins: 10
-                            text: "벡터스코프"
+                            text: "Vectorscope"
                             color: "white"
                             font.pixelSize: 14
                             z: 1
@@ -247,10 +282,10 @@ Window {
         }
     }
     
-    // 스코프 업데이트 함수
+    // Update scopes function
     function updateScopes() {
         if (!videoArea || !videoArea.mpvSupported || currentFile === "") {
-            statusText.text = "비디오가 로드되지 않았습니다";
+            statusText.text = "No video loaded";
             return;
         }
         
@@ -262,50 +297,40 @@ Window {
         statusText.text = "";
         
         try {
-            // 히스토그램 업데이트
+            // Update histogram
             if (histogramCheck.checked) {
                 var histogramMpvItem = scopeLoader.item.histogramMpvLoader.item;
                 if (histogramMpvItem && histogramMpvItem.mpvPlayer) {
-                    // 전체 경로 가져오기 (상대 경로가 문제가 될 수 있음)
-                    var fullPath = currentFile;
-                    if (!fullPath.startsWith("file:///")) {
-                        fullPath = "file:///" + fullPath.replace(/\\/g, "/");
+                    // Apply filter first, then load video
+                    try {
+                        histogramMpvItem.mpvPlayer.command(["loadfile", currentFile]);
+                        // Delayed execution with timer
+                        histogramTimer.targetMpv = histogramMpvItem.mpvPlayer;
+                        histogramTimer.restart();
+                    } catch (e) {
+                        console.error("Failed to update histogram:", e);
                     }
-                    
-                    // 히스토그램 필터 적용
-                    histogramMpvItem.mpvPlayer.command(["loadfile", fullPath]);
-                    
-                    // 잠시 대기 후 필터 적용
-                    MediaUtils.setTimeout(function() {
-                        histogramMpvItem.mpvPlayer.command(["vf", "set", "lavfi=histogram"]);
-                        console.log("히스토그램 필터 적용됨:", fullPath);
-                    }, 500);
                 }
             }
             
-            // 벡터스코프 업데이트
+            // Update vectorscope
             if (vectorscopeCheck.checked) {
                 var vectorscopeMpvItem = scopeLoader.item.vectorscopeMpvLoader.item;
                 if (vectorscopeMpvItem && vectorscopeMpvItem.mpvPlayer) {
-                    // 전체 경로 가져오기 (상대 경로가 문제가 될 수 있음)
-                    var fullPath = currentFile;
-                    if (!fullPath.startsWith("file:///")) {
-                        fullPath = "file:///" + fullPath.replace(/\\/g, "/");
+                    // Apply filter first, then load video
+                    try {
+                        vectorscopeMpvItem.mpvPlayer.command(["loadfile", currentFile]);
+                        // Delayed execution with timer
+                        vectorscopeTimer.targetMpv = vectorscopeMpvItem.mpvPlayer;
+                        vectorscopeTimer.restart();
+                    } catch (e) {
+                        console.error("Failed to update vectorscope:", e);
                     }
-                    
-                    // 벡터스코프 필터 적용
-                    vectorscopeMpvItem.mpvPlayer.command(["loadfile", fullPath]);
-                    
-                    // 잠시 대기 후 필터 적용
-                    MediaUtils.setTimeout(function() {
-                        vectorscopeMpvItem.mpvPlayer.command(["vf", "set", "lavfi=vectorscope"]);
-                        console.log("벡터스코프 필터 적용됨:", fullPath);
-                    }, 500);
                 }
             }
         } catch (e) {
             console.error("Failed to update scopes:", e);
-            statusText.text = "스코프 업데이트 실패: " + e;
+            statusText.text = "Failed to update scopes";
         }
     }
 }

@@ -2,47 +2,66 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// 상대 경로를 사용하여 필요한 컴포넌트 임포트
+// Import components from relative paths
 import "../ui"
 import "../utils"
 import "../widgets"
 
-// 비디오 플레이어 메인 컴포넌트
+// Main video player component
 Item {
     id: root
     
-    // 내부 참조 프로퍼티
+    // Internal reference properties
     property alias videoArea: videoArea
     property alias controlBar: controlBar
     property alias statusBar: statusBar
     property bool isFullscreen: false
     
-    // mpv 객체에 안전하게 접근하는 함수
+    // Function to safely access the mpv object
     function getMpvObject() {
-        if (!videoArea || !videoArea.mpvSupported) {
+        if (!videoArea) {
+            console.log("VideoPlayer: videoArea is null");
+            return null;
+        }
+        
+        if (!videoArea.mpvSupported) {
             console.log("VideoPlayer: mpvSupported is false");
             return null;
         }
-        if (!videoArea.mpvLoader || !videoArea.mpvLoader.item) {
-            console.log("VideoPlayer: mpvLoader or item is null");
+        
+        // Explicitly check if mpvLoader exists
+        var loader = videoArea.mpvLoader;
+        if (!loader) {
+            console.log("VideoPlayer: mpvLoader is null");
             return null;
         }
-        if (!videoArea.mpvLoader.item.mpvPlayer) {
+        
+        // Explicitly check if loader.item exists
+        var item = loader.item;
+        if (!item) {
+            console.log("VideoPlayer: mpvLoader.item is null");
+            return null;
+        }
+        
+        // Check if mpvPlayer exists
+        var player = item.mpvPlayer;
+        if (!player) {
             console.log("VideoPlayer: mpvPlayer is null");
             return null;
         }
+        
         console.log("VideoPlayer: mpvPlayer found");
-        return videoArea.mpvLoader.item.mpvPlayer;
+        return player;
     }
     
-    // 설정 창
+    // Settings window
     SettingsPanel {
         id: settingsWindow
         visible: false
         mpvObject: getMpvObject()
     }
     
-    // 스코프 창
+    // Scopes window
     ScopeWindow {
         id: scopeWindow
         visible: false
@@ -53,19 +72,19 @@ Item {
         }
     }
     
-    // 메인 레이아웃 - 비디오 영역과 컨트롤 영역 분리
+    // Main layout - separates video area and control area
     ColumnLayout {
         id: mainLayout
         anchors.fill: parent
         spacing: 0
         
-        // 비디오 화면 영역 (레이아웃에서 늘어나도록 설정)
+        // Video screen area (set to expand in the layout)
         VideoArea {
             id: videoArea
             Layout.fillWidth: true
             Layout.fillHeight: true
             
-            // 비디오 관련 이벤트 처리
+            // Video-related event handling
             onOnFrameChangedEvent: function(frame) {
                 controlBar.currentFrame = frame
                 statusBar.currentFrame = frame
@@ -86,13 +105,13 @@ Item {
             }
         }
         
-        // 타임라인/컨트롤 바
+        // Timeline/control bar
         ControlBar {
             id: controlBar
             Layout.fillWidth: true
             isPlaying: videoArea.isPlaying
             
-            // 컨트롤 버튼 이벤트 처리
+            // Control button event handling
             onOpenFileRequested: videoArea.openFile()
             onPlayPauseRequested: videoArea.playPause()
             onFrameBackRequested: function(frames) { videoArea.stepBackward(frames) }
@@ -105,13 +124,13 @@ Item {
                 toggleFullscreen()
             }
             onSettingsToggleRequested: {
-                // 대신 설정 창 열기
+                // Open settings window instead
                 if (!settingsWindow.visible) {
                     settingsWindow.show()
                 }
             }
             onToggleScopesRequested: {
-                // 스코프 창 열기/닫기
+                // Open/close scopes window
                 if (!scopeWindow.visible) {
                     console.log("Showing scope window");
                     scopeWindow.show();
@@ -121,20 +140,20 @@ Item {
             }
         }
         
-        // 상태 바
+        // Status bar
         StatusBar {
             id: statusBar
             Layout.fillWidth: true
         }
     }
     
-    // 전체화면 전환 함수
+    // Fullscreen toggle function
     function toggleFullscreen() {
-        // 이 함수는 C++ 코드에서 구현 필요
+        // This function needs to be implemented in C++ code
         console.log("Fullscreen toggled:", isFullscreen)
     }
     
-    // 외부에서 호출할 함수들
+    // Functions to be called from outside
     function loadFile(path) {
         if (videoArea) {
             videoArea.loadFile(path)

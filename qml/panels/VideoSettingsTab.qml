@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../utils"
 
 ScrollView {
     id: videoSettingsTab
@@ -8,13 +9,7 @@ ScrollView {
     Layout.fillHeight: true
     clip: true
     
-    // Required properties
-    property color accentColor
-    property color secondaryColor
-    property color textColor
-    property color panelColor
-    property color controlBgColor
-    property color borderColor
+    // Required property
     property var mpvPlayer
     
     ColumnLayout {
@@ -26,8 +21,8 @@ ScrollView {
             Layout.fillWidth: true
             
             background: Rectangle {
-                color: Qt.darker(panelColor, 1.1)
-                border.color: borderColor
+                color: ThemeManager.isDarkTheme ? Qt.darker(ThemeManager.panelColor, 1.1) : Qt.lighter(ThemeManager.panelColor, 0.95)
+                border.color: ThemeManager.borderColor
                 border.width: 1
                 radius: 4
                 y: parent.topPadding - parent.bottomPadding
@@ -38,9 +33,9 @@ ScrollView {
             label: Label {
                 text: parent.title
                 font.bold: true
-                font.family: "Segoe UI"
-                font.pixelSize: 13
-                color: textColor
+                font.family: ThemeManager.defaultFont
+                font.pixelSize: ThemeManager.normalFontSize
+                color: ThemeManager.textColor
                 topPadding: 8
             }
             
@@ -51,8 +46,8 @@ ScrollView {
                 
                 Text {
                     text: qsTr("Brightness:")
-                    color: textColor
-                    font.family: "Segoe UI"
+                    color: ThemeManager.textColor
+                    font.family: ThemeManager.defaultFont
                 }
                 Slider {
                     id: brightnessSlider
@@ -69,13 +64,13 @@ ScrollView {
                         width: brightnessSlider.availableWidth
                         height: implicitHeight
                         radius: 1.5
-                        color: "#444444"
+                        color: ThemeManager.borderColor
                         
                         Rectangle {
                             property real visualPos: 0.5 + (brightnessSlider.value / (brightnessSlider.to - brightnessSlider.from)) * 0.5
                             width: visualPos * parent.width
                             height: parent.height
-                            color: accentColor
+                            color: ThemeManager.accentColor
                             radius: 1.5
                         }
                     }
@@ -86,8 +81,8 @@ ScrollView {
                         implicitWidth: 14
                         implicitHeight: 14
                         radius: 7
-                        color: brightnessSlider.pressed ? Qt.darker(accentColor, 1.1) : accentColor
-                        border.color: "#FFFFFF"
+                        color: brightnessSlider.pressed ? ThemeManager.accentColorActive : ThemeManager.accentColor
+                        border.color: ThemeManager.isDarkTheme ? "#FFFFFF" : "#FFFFFF"
                         border.width: 2
                     }
                     
@@ -100,8 +95,8 @@ ScrollView {
                 
                 Text {
                     text: qsTr("Contrast:")
-                    color: textColor
-                    font.family: "Segoe UI"
+                    color: ThemeManager.textColor
+                    font.family: ThemeManager.defaultFont
                 }
                 Slider {
                     id: contrastSlider
@@ -118,13 +113,13 @@ ScrollView {
                         width: contrastSlider.availableWidth
                         height: implicitHeight
                         radius: 1.5
-                        color: "#444444"
+                        color: ThemeManager.borderColor
                         
                         Rectangle {
                             property real visualPos: 0.5 + (contrastSlider.value / (contrastSlider.to - contrastSlider.from)) * 0.5
                             width: visualPos * parent.width
                             height: parent.height
-                            color: accentColor
+                            color: ThemeManager.accentColor
                             radius: 1.5
                         }
                     }
@@ -135,8 +130,8 @@ ScrollView {
                         implicitWidth: 14
                         implicitHeight: 14
                         radius: 7
-                        color: contrastSlider.pressed ? Qt.darker(accentColor, 1.1) : accentColor
-                        border.color: "#FFFFFF"
+                        color: contrastSlider.pressed ? ThemeManager.accentColorActive : ThemeManager.accentColor
+                        border.color: ThemeManager.isDarkTheme ? "#FFFFFF" : "#FFFFFF"
                         border.width: 2
                     }
                     
@@ -149,8 +144,8 @@ ScrollView {
                 
                 Text {
                     text: qsTr("Saturation:")
-                    color: textColor
-                    font.family: "Segoe UI"
+                    color: ThemeManager.textColor
+                    font.family: ThemeManager.defaultFont
                 }
                 Slider {
                     id: saturationSlider
@@ -167,13 +162,13 @@ ScrollView {
                         width: saturationSlider.availableWidth
                         height: implicitHeight
                         radius: 1.5
-                        color: "#444444"
+                        color: ThemeManager.borderColor
                         
                         Rectangle {
                             property real visualPos: 0.5 + (saturationSlider.value / (saturationSlider.to - saturationSlider.from)) * 0.5
                             width: visualPos * parent.width
                             height: parent.height
-                            color: accentColor
+                            color: ThemeManager.accentColor
                             radius: 1.5
                         }
                     }
@@ -184,8 +179,8 @@ ScrollView {
                         implicitWidth: 14
                         implicitHeight: 14
                         radius: 7
-                        color: saturationSlider.pressed ? Qt.darker(accentColor, 1.1) : accentColor
-                        border.color: "#FFFFFF"
+                        color: saturationSlider.pressed ? ThemeManager.accentColorActive : ThemeManager.accentColor
+                        border.color: ThemeManager.isDarkTheme ? "#FFFFFF" : "#FFFFFF"
                         border.width: 2
                     }
                     
@@ -198,8 +193,8 @@ ScrollView {
                 
                 Text {
                     text: qsTr("Gamma:")
-                    color: textColor
-                    font.family: "Segoe UI"
+                    color: ThemeManager.textColor
+                    font.family: ThemeManager.defaultFont
                 }
                 Slider {
                     id: gammaSlider
@@ -216,13 +211,13 @@ ScrollView {
                         width: gammaSlider.availableWidth
                         height: implicitHeight
                         radius: 1.5
-                        color: "#444444"
+                        color: ThemeManager.borderColor
                         
                         Rectangle {
                             property real visualPos: 0.5 + (gammaSlider.value / (gammaSlider.to - gammaSlider.from)) * 0.5
                             width: visualPos * parent.width
                             height: parent.height
-                            color: accentColor
+                            color: ThemeManager.accentColor
                             radius: 1.5
                         }
                     }
@@ -233,8 +228,8 @@ ScrollView {
                         implicitWidth: 14
                         implicitHeight: 14
                         radius: 7
-                        color: gammaSlider.pressed ? Qt.darker(accentColor, 1.1) : accentColor
-                        border.color: "#FFFFFF"
+                        color: gammaSlider.pressed ? ThemeManager.accentColorActive : ThemeManager.accentColor
+                        border.color: ThemeManager.isDarkTheme ? "#FFFFFF" : "#FFFFFF"
                         border.width: 2
                     }
                     
@@ -245,44 +240,78 @@ ScrollView {
                     }
                 }
                 
-                Button {
-                    text: qsTr("Reset")
-                    Layout.columnSpan: 2
-                    Layout.alignment: Qt.AlignHCenter
-                    
-                    contentItem: Text {
-                        text: parent.text
-                        font.pixelSize: 12
-                        font.family: "Segoe UI"
-                        color: "#FFFFFF"
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                Text {
+                    text: qsTr("Hue:")
+                    color: ThemeManager.textColor
+                    font.family: ThemeManager.defaultFont
+                }
+                Slider {
+                    id: hueSlider
+                    from: -100
+                    to: 100
+                    value: 0
+                    Layout.fillWidth: true
                     
                     background: Rectangle {
-                        radius: 4
-                        color: parent.down ? Qt.darker("#444444", 1.2) : 
-                              parent.hovered ? Qt.lighter("#444444", 1.1) : "#444444"
+                        x: hueSlider.leftPadding
+                        y: hueSlider.topPadding + hueSlider.availableHeight / 2 - height / 2
+                        implicitWidth: 200
+                        implicitHeight: 3
+                        width: hueSlider.availableWidth
+                        height: implicitHeight
+                        radius: 1.5
+                        color: ThemeManager.borderColor
+                        
+                        Rectangle {
+                            property real visualPos: 0.5 + (hueSlider.value / (hueSlider.to - hueSlider.from)) * 0.5
+                            width: visualPos * parent.width
+                            height: parent.height
+                            color: ThemeManager.accentColor
+                            radius: 1.5
+                        }
                     }
+                    
+                    handle: Rectangle {
+                        x: hueSlider.leftPadding + hueSlider.visualPosition * (hueSlider.availableWidth - width)
+                        y: hueSlider.topPadding + hueSlider.availableHeight / 2 - height / 2
+                        implicitWidth: 14
+                        implicitHeight: 14
+                        radius: 7
+                        color: hueSlider.pressed ? ThemeManager.accentColorActive : ThemeManager.accentColor
+                        border.color: ThemeManager.isDarkTheme ? "#FFFFFF" : "#FFFFFF"
+                        border.width: 2
+                    }
+                    
+                    onValueChanged: {
+                        if (mpvPlayer) {
+                            mpvPlayer.setProperty("hue", value);
+                        }
+                    }
+                }
+                
+                Button {
+                    text: qsTr("Reset All")
+                    Layout.columnSpan: 2
+                    Layout.alignment: Qt.AlignHCenter
                     
                     onClicked: {
                         brightnessSlider.value = 0;
                         contrastSlider.value = 0;
                         saturationSlider.value = 0;
                         gammaSlider.value = 0;
+                        hueSlider.value = 0;
                     }
                 }
             }
         }
         
-        // Video rendering settings
         GroupBox {
-            title: qsTr("Rendering Settings")
+            title: qsTr("Video Processing")
             Layout.fillWidth: true
             
             background: Rectangle {
-                color: Qt.darker(panelColor, 1.1)
-                border.color: borderColor
+                color: ThemeManager.isDarkTheme ? Qt.darker(ThemeManager.panelColor, 1.1) : Qt.lighter(ThemeManager.panelColor, 0.95)
+                border.color: ThemeManager.borderColor
                 border.width: 1
                 radius: 4
                 y: parent.topPadding - parent.bottomPadding
@@ -293,140 +322,100 @@ ScrollView {
             label: Label {
                 text: parent.title
                 font.bold: true
-                font.family: "Segoe UI"
-                font.pixelSize: 13
-                color: textColor
+                font.family: ThemeManager.defaultFont
+                font.pixelSize: ThemeManager.normalFontSize
+                color: ThemeManager.textColor
                 topPadding: 8
             }
             
             ColumnLayout {
                 Layout.fillWidth: true
-                
-                Text {
-                    text: qsTr("Scaling Algorithm:")
-                    color: textColor
-                    font.family: "Segoe UI"
-                    font.pixelSize: 13
-                }
-                
-                ComboBox {
-                    id: scalingCombo
-                    model: ["Bilinear", "Spline", "Lanczos", "Bicubic"]
-                    Layout.fillWidth: true
-                    
-                    delegate: ItemDelegate {
-                        width: scalingCombo.width
-                        contentItem: Text {
-                            text: modelData
-                            color: textColor
-                            font.pixelSize: 12
-                            font.family: "Segoe UI"
-                            elide: Text.ElideRight
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        highlighted: scalingCombo.highlightedIndex === index
-                        
-                        background: Rectangle {
-                            color: highlighted ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2) : "transparent"
-                        }
-                    }
-                    
-                    indicator: Canvas {
-                        id: canvas
-                        x: scalingCombo.width - width - 5
-                        y: scalingCombo.height / 2 - height / 2
-                        width: 12
-                        height: 8
-                        contextType: "2d"
-                        
-                        onPaint: {
-                            context.reset();
-                            context.moveTo(0, 0);
-                            context.lineTo(width, 0);
-                            context.lineTo(width / 2, height);
-                            context.closePath();
-                            context.fillStyle = accentColor;
-                            context.fill();
-                        }
-                    }
-                    
-                    contentItem: Text {
-                        leftPadding: 8
-                        rightPadding: scalingCombo.indicator.width + 8
-                        
-                        text: scalingCombo.displayText
-                        font: scalingCombo.font
-                        color: textColor
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
-                    }
-                    
-                    background: Rectangle {
-                        implicitWidth: 120
-                        implicitHeight: 30
-                        border.color: scalingCombo.pressed ? accentColor : borderColor
-                        border.width: scalingCombo.visualFocus ? 2 : 1
-                        radius: 4
-                        color: scalingCombo.pressed ? Qt.darker(controlBgColor, 1.1) : controlBgColor
-                    }
-                    
-                    popup: Popup {
-                        y: scalingCombo.height - 1
-                        width: scalingCombo.width
-                        implicitHeight: contentItem.implicitHeight
-                        padding: 1
-                        
-                        contentItem: ListView {
-                            clip: true
-                            implicitHeight: contentHeight
-                            model: scalingCombo.popup.visible ? scalingCombo.delegateModel : null
-                            currentIndex: scalingCombo.highlightedIndex
-                            
-                            ScrollIndicator.vertical: ScrollIndicator { }
-                        }
-                        
-                        background: Rectangle {
-                            border.color: borderColor
-                            border.width: 1
-                            radius: 4
-                            color: panelColor
-                        }
-                    }
-                    
-                    onCurrentTextChanged: {
-                        if (mpvPlayer) {
-                            mpvPlayer.setProperty("scale", currentText.toLowerCase());
-                        }
-                    }
-                }
-                
-                // Add spacing
-                Item { height: 8; Layout.fillWidth: true }
+                spacing: 8
                 
                 CheckBox {
-                    text: qsTr("Use Hardware Acceleration")
-                    checked: true
-                    
-                    contentItem: Text {
-                        text: parent.text
-                        font.pixelSize: 13
-                        font.family: "Segoe UI"
-                        color: textColor
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: parent.indicator.width + parent.spacing
-                    }
+                    id: deinterlaceCheck
+                    text: qsTr("Deinterlace")
+                    checked: false
                     
                     onCheckedChanged: {
-                        if (mpvPlayer && !checked) {
-                            mpvPlayer.setProperty("hwdec", "no");
-                        } else if (mpvPlayer) {
-                            mpvPlayer.setProperty("hwdec", "auto");
+                        if (mpvPlayer) {
+                            mpvPlayer.setProperty("deinterlace", checked ? "yes" : "no");
+                        }
+                    }
+                }
+                
+                CheckBox {
+                    id: hwdecCheck
+                    text: qsTr("Hardware Acceleration")
+                    checked: true
+                    
+                    onCheckedChanged: {
+                        if (mpvPlayer) {
+                            mpvPlayer.setProperty("hwdec", checked ? "auto" : "no");
+                        }
+                    }
+                }
+                
+                GroupBox {
+                    title: qsTr("Scaling Method")
+                    Layout.fillWidth: true
+                    
+                    background: Rectangle {
+                        color: "transparent"
+                        border.color: ThemeManager.borderColor
+                        border.width: 1
+                        radius: 4
+                        y: parent.topPadding - parent.bottomPadding
+                        width: parent.width
+                        height: parent.height - parent.topPadding + parent.bottomPadding
+                    }
+                    
+                    label: Label {
+                        text: parent.title
+                        font.bold: true
+                        font.family: ThemeManager.defaultFont
+                        font.pixelSize: ThemeManager.smallFontSize
+                        color: ThemeManager.textColor
+                        topPadding: 6
+                    }
+                    
+                    ColumnLayout {
+                        width: parent.width
+                        
+                        ComboBox {
+                            id: scalingMethodCombo
+                            Layout.fillWidth: true
+                            model: [
+                                "Bilinear (Fast)", 
+                                "Bicubic (Quality)", 
+                                "Spline36 (High Quality)", 
+                                "Lanczos (Sharpest)"
+                            ]
+                            currentIndex: 1
+                            
+                            onCurrentIndexChanged: {
+                                if (mpvPlayer) {
+                                    var method = "";
+                                    switch (currentIndex) {
+                                        case 0: method = "bilinear"; break;
+                                        case 1: method = "bicubic"; break;
+                                        case 2: method = "spline36"; break;
+                                        case 3: method = "lanczos"; break;
+                                        default: method = "bicubic";
+                                    }
+                                    mpvPlayer.setProperty("scale", method);
+                                }
+                            }
                         }
                     }
                 }
             }
         }
         
-        Item { Layout.fillHeight: true }
+        // Spacer
+        Item {
+            height: 10
+            Layout.fillWidth: true
+        }
     }
 } 
