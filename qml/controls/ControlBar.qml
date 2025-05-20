@@ -21,6 +21,7 @@ Rectangle {
     signal toggleSettingsPanelRequested()
     signal takeScreenshotRequested()
     signal toggleFullscreenRequested()
+    signal toggleScopesRequested()
     signal frameBackwardRequested(int frames)
     signal frameForwardRequested(int frames)
     
@@ -184,7 +185,17 @@ Rectangle {
                         implicitHeight: 28
                         onClicked: takeScreenshotRequested()
                     }
-                    
+
+                    TransparentButton {
+                        useIcon: true
+                        iconSource: "scopes"
+                        iconSize: 16
+                        textColorNormal: "#FFFFFF" // Text color
+                        implicitWidth: 28
+                        implicitHeight: 28
+                        onClicked: toggleScopesRequested()
+                    }
+
                     TransparentButton {
                         id: fullscreenButton
                         useIcon: true

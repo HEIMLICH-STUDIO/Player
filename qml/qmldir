@@ -9,6 +9,7 @@ FrameTimelineBar 1.0 widgets/FrameTimelineBar.qml
 ControlBar 1.0 widgets/ControlBar.qml
 StatusBar 1.0 widgets/StatusBar.qml
 SettingsPanel 1.0 widgets/SettingsPanel.qml
+ScopePanel 1.0 widgets/ScopePanel.qml
 
 # UI 컴포넌트
 VideoArea 1.0 ui/VideoArea.qml

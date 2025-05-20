@@ -31,6 +31,7 @@ ApplicationWindow {
     property real fps: 24.0
     property string currentTimecode: "00:00:00:00"
     property bool magnifierActive: false
+    property bool scopesPanelVisible: false
     
     // Style constants - professional dark theme like DJV
     readonly property color accentColor: "#0078D7"  // Professional blue
@@ -274,6 +275,7 @@ ApplicationWindow {
                 videoArea.mpvPlayer.command(["screenshot"]);
             }
         }
+        onToggleScopesRequested: scopesPanelVisible = !scopesPanelVisible
         onFrameBackwardRequested: function(frames) {
             goBackFrames(frames);
         }
@@ -349,6 +351,15 @@ ApplicationWindow {
         visible: magnifierActive
         x: (parent.width - width) / 2
         y: (parent.height - height) / 2
+    }
+
+    ScopePanel {
+        id: scopePanel
+        visible: scopesPanelVisible
+        mpvPlayer: videoArea.mpvPlayer
+        anchors.right: parent.right
+        anchors.bottom: bottomControlBar.top
+        anchors.margins: 10
     }
     
     // 초기화
