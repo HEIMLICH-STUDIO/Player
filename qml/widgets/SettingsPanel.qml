@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
+import QtGraphicalEffects
 
 import "../utils"
 import "../ui"
@@ -37,6 +38,7 @@ Window {
         color: ThemeManager.dialogColor
         border.width: 1
         border.color: ThemeManager.borderColor
+        radius: 6
         
         // 메인 레이아웃
         ColumnLayout {
@@ -532,4 +534,14 @@ Window {
             }
         }
     }
-} 
+
+    DropShadow {
+        anchors.fill: contentArea
+        horizontalOffset: 0
+        verticalOffset: 4
+        radius: 8
+        samples: 16
+        color: "#66000000"
+        source: contentArea
+    }
+}

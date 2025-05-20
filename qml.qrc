@@ -19,6 +19,7 @@
         <file>qml/widgets/StatusBar.qml</file>
         <file>qml/widgets/SettingsPanel.qml</file>
         <file>qml/widgets/ScopePanel.qml</file>
+        <file>qml/widgets/ScopeWindow.qml</file>
         
         <!-- Utils -->
         <file>qml/utils/MediaUtils.qml</file>

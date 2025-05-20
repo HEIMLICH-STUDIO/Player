@@ -1020,4 +1020,15 @@ bool MpvObject::isOneBasedFrameNumbers() const
 int MpvObject::frameCount() const
 {
     return m_frameCount;
-} 
+}
+
+void MpvObject::applyVideoFilters(const QStringList& filters)
+{
+    if (!mpv)
+        return;
+
+    command(QVariantList() << "vf" << "clr");
+    for (const QString &f : filters) {
+        command(QVariantList() << "vf" << "add" << f);
+    }
+}

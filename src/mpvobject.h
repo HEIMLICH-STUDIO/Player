@@ -85,6 +85,7 @@ public slots:
     void handleEndOfVideo();
     void seekToPosition(double pos);
     void updateFrameCount();
+    void applyVideoFilters(const QStringList& filters);
 
 signals:
     void pauseChanged(bool);
