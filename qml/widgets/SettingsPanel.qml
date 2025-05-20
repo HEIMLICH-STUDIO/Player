@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
-import Qt5Compat.GraphicalEffects
 
 import "../utils"
 import "../ui"
@@ -533,15 +532,5 @@ Window {
                 }
             }
         }
-    }
-
-    DropShadow {
-        anchors.fill: contentArea
-        horizontalOffset: 0
-        verticalOffset: 4
-        radius: 8
-        samples: 16
-        color: "#66000000"
-        source: contentArea
     }
 }

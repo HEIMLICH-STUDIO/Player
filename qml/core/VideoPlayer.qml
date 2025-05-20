@@ -17,11 +17,40 @@ Item {
     property alias statusBar: statusBar
     property bool isFullscreen: false
     
+    // mpv 객체에 안전하게 접근하는 함수
+    function getMpvObject() {
+        if (!videoArea || !videoArea.mpvSupported) {
+            console.log("VideoPlayer: mpvSupported is false");
+            return null;
+        }
+        if (!videoArea.mpvLoader || !videoArea.mpvLoader.item) {
+            console.log("VideoPlayer: mpvLoader or item is null");
+            return null;
+        }
+        if (!videoArea.mpvLoader.item.mpvPlayer) {
+            console.log("VideoPlayer: mpvPlayer is null");
+            return null;
+        }
+        console.log("VideoPlayer: mpvPlayer found");
+        return videoArea.mpvLoader.item.mpvPlayer;
+    }
+    
     // 설정 창
     SettingsPanel {
         id: settingsWindow
         visible: false
-        mpvObject: videoArea ? (videoArea.mpvSupported ? videoArea.mpvLoader.item.mpvPlayer : null) : null
+        mpvObject: getMpvObject()
+    }
+    
+    // 스코프 창
+    ScopeWindow {
+        id: scopeWindow
+        visible: false
+        videoArea: videoArea
+        
+        Component.onCompleted: {
+            console.log("ScopeWindow initialized");
+        }
     }
     
     // 메인 레이아웃 - 비디오 영역과 컨트롤 영역 분리
@@ -79,6 +108,15 @@ Item {
                 // 대신 설정 창 열기
                 if (!settingsWindow.visible) {
                     settingsWindow.show()
+                }
+            }
+            onToggleScopesRequested: {
+                // 스코프 창 열기/닫기
+                if (!scopeWindow.visible) {
+                    console.log("Showing scope window");
+                    scopeWindow.show();
+                } else {
+                    scopeWindow.hide();
                 }
             }
         }

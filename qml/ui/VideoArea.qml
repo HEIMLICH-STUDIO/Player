@@ -305,6 +305,54 @@ Item {
         }
     }
     
+    // 비디오 필터 추가
+    function addVideoFilter(filter) {
+        if (!mpvSupported) {
+            showMessage("Cannot add filter: MPV support not available");
+            return false;
+        }
+        
+        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
+        if (mpvPlayer) {
+            try {
+                console.log("Adding video filter:", filter);
+                mpvPlayer.command(["vf", "add", filter]);
+                return true;
+            } catch (e) {
+                console.error("Failed to add filter:", e);
+                showMessage("Filter error: " + e);
+                return false;
+            }
+        }
+        
+        showMessage("MPV player not initialized");
+        return false;
+    }
+    
+    // 비디오 필터 제거
+    function removeVideoFilter(filter) {
+        if (!mpvSupported) {
+            showMessage("Cannot remove filter: MPV support not available");
+            return false;
+        }
+        
+        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
+        if (mpvPlayer) {
+            try {
+                console.log("Removing video filter:", filter);
+                mpvPlayer.command(["vf", "remove", filter]);
+                return true;
+            } catch (e) {
+                console.error("Failed to remove filter:", e);
+                showMessage("Filter error: " + e);
+                return false;
+            }
+        }
+        
+        showMessage("MPV player not initialized");
+        return false;
+    }
+    
     // 키보드 포커스
     focus: true
     Keys.onSpacePressed: playPause()
