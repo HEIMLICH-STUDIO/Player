@@ -276,7 +276,7 @@ Window {
                     histogramMpvItem.mpvPlayer.command(["loadfile", fullPath]);
                     
                     // 잠시 대기 후 필터 적용
-                    Timer.setTimeout(function() {
+                    MediaUtils.setTimeout(function() {
                         histogramMpvItem.mpvPlayer.command(["vf", "set", "lavfi=histogram"]);
                         console.log("히스토그램 필터 적용됨:", fullPath);
                     }, 500);
@@ -297,7 +297,7 @@ Window {
                     vectorscopeMpvItem.mpvPlayer.command(["loadfile", fullPath]);
                     
                     // 잠시 대기 후 필터 적용
-                    Timer.setTimeout(function() {
+                    MediaUtils.setTimeout(function() {
                         vectorscopeMpvItem.mpvPlayer.command(["vf", "set", "lavfi=vectorscope"]);
                         console.log("벡터스코프 필터 적용됨:", fullPath);
                     }, 500);

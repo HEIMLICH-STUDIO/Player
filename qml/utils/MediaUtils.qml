@@ -114,7 +114,21 @@ QtObject {
     // 프레임에서 위치 계산
     function frameToPosition(frame, fps) {
         if (frame < 0 || fps <= 0) return 0.0;
-        
+
         return frame / fps;
     }
-} 
+
+    // Delay execution of a callback similar to JavaScript's setTimeout
+    function setTimeout(callback, delay) {
+        if (typeof callback !== 'function')
+            return null;
+
+        var msec = delay > 0 ? delay : 0;
+        var timer = Qt.createQmlObject('import QtQuick 2.15; Timer { interval: ' + msec + '; running: true; repeat: false }', root, 'setTimeoutTimer');
+        timer.triggered.connect(function() {
+            callback();
+            timer.destroy();
+        });
+        return timer;
+    }
+}
