@@ -1,0 +1,3 @@
+module Utils
+
+singleton MediaFunctions 1.0 MediaFunctions.qml 

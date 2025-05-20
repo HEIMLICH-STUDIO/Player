@@ -6,6 +6,7 @@
 #include <render_gl.h>
 #include <QTimer>
 #include <QVariant>
+#include <QDateTime>
 
 class MpvRenderer;
 
@@ -17,6 +18,11 @@ class MpvObject : public QQuickFramebufferObject
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
     Q_PROPERTY(double duration READ duration NOTIFY durationChanged)
     Q_PROPERTY(QString mediaTitle READ mediaTitle NOTIFY mediaTitleChanged)
+    Q_PROPERTY(double fps READ fps NOTIFY fpsChanged)
+    Q_PROPERTY(bool endReached READ isEndReached NOTIFY endReachedChanged)
+    Q_PROPERTY(bool loop READ isLoopEnabled WRITE setLoopEnabled NOTIFY loopChanged)
+    Q_PROPERTY(int frameCount READ frameCount NOTIFY frameCountChanged)
+    Q_PROPERTY(bool oneBasedFrameNumbers READ isOneBasedFrameNumbers WRITE setOneBasedFrameNumbers NOTIFY oneBasedFrameNumbersChanged)
 
     mpv_handle *mpv;
     mpv_render_context *mpv_context;
@@ -27,47 +33,73 @@ class MpvObject : public QQuickFramebufferObject
     bool m_pause = false;
     double m_position = 0;
     double m_duration = 0;
+    double m_lastPosition = 0;
+    double m_fps = 0.0;
+    bool m_pendingPauseState = false;
+    bool m_endReached = false;
+    bool m_loopEnabled = false;
+    int m_frameCount = 0;
+    bool m_oneBasedFrameNumbers = false; // 기본값은 0-기반
+    
+    // 성능 모니터링 관련 변수
+    QDateTime m_lastPerformanceCheck;
+    bool m_performanceOptimizationApplied = false;
+    
+    // 시크 관련 변수
+    qint64 m_lastSeekTime = 0;
+    
+    // 타이머
+    QTimer *m_stateChangeTimer = nullptr;
+    QTimer *m_performanceTimer = nullptr;
 
 public:
-    MpvObject(QQuickItem *parent = nullptr);
+    explicit MpvObject(QQuickItem * parent = 0);
     virtual ~MpvObject();
+    virtual Renderer *createRenderer() const;
 
-    QString filename() const { return m_filename; }
-    QString mediaTitle() const { return m_mediaTitle; }
-    bool isPaused() const { return m_pause; }
-    double position() const { return m_position; }
-    double duration() const { return m_duration; }
-
-    QQuickFramebufferObject::Renderer *createRenderer() const override;
-
-    // 커맨드 및 속성 처리 함수
-    Q_INVOKABLE void command(const QVariant& params);
-    Q_INVOKABLE void setProperty(const QString& name, const QVariant& value);
-    Q_INVOKABLE QVariant getProperty(const QString& name);
-
-signals:
-    void filenameChanged(QString filename);
-    void mediaTitleChanged(QString title);
-    void pauseChanged(bool pause);
-    void positionChanged(double position);
-    void durationChanged(double duration);
-    void playingChanged(bool playing);
-    void onUpdate();
-    void videoReconfig();
+    QString filename() const;
+    bool isPaused() const;
+    double position() const;
+    double duration() const;
+    double fps() const;
+    QString mediaTitle() const;
+    bool isEndReached() const;
+    bool isLoopEnabled() const;
+    void setLoopEnabled(bool enabled);
+    int frameCount() const;
+    bool isOneBasedFrameNumbers() const;
+    void setOneBasedFrameNumbers(bool oneBased);
 
 public slots:
-    Q_INVOKABLE void play();
-    Q_INVOKABLE void pause();
-    Q_INVOKABLE void playPause();
-    
-private slots:
+    void play();
+    void pause();
+    void playPause();
+    void command(const QVariant& params);
+    void setProperty(const QString& name, const QVariant& value);
+    QVariant getProperty(const QString& name);
     void handleMpvEvents();
+    void updatePositionProperty();
+    void processStateChange();
+    void checkPerformance();
+    void resetEndReached();
+    void handleEndOfVideo();
+    void seekToPosition(double pos);
+    void updateFrameCount();
 
-private:
-    // MPV 노드 변환 헬퍼 함수
-    mpv_node createNode(const QVariant& v);
-    void freeNode(mpv_node* node);
-    QVariant fromNode(const mpv_node& node);
+signals:
+    void pauseChanged(bool);
+    void playingChanged(bool);
+    void positionChanged(double);
+    void durationChanged(double);
+    void mediaTitleChanged(const QString&);
+    void filenameChanged(const QString&);
+    void videoReconfig();
+    void seekRequested(int frame);
+    void fpsChanged(double);
+    void endReachedChanged(bool);
+    void loopChanged(bool);
+    void frameCountChanged(int);
+    void oneBasedFrameNumbersChanged(bool);
 };
 
 #endif // MPVOBJECT_H 

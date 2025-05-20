@@ -1,11 +1,30 @@
 <RCC>
     <qresource prefix="/">
-        <file>qml/main.qml</file>
-        <file>qml/PlayerControls.qml</file>
-        <file>qml/VideoOutput.qml</file>
-        <file>qml/PlaylistView.qml</file>
-        <file>qml/Theme.qml</file>
+        <!-- Main QML files -->
         <file>qml/qmldir</file>
+        
+        <!-- Core -->
+        <file>qml/core/PlayerCore.qml</file>
+        <file>qml/core/MainWindow.qml</file>
+        <file>qml/core/VideoPlayer.qml</file>
+        
+        <!-- UI Components -->
+        <file>qml/ui/VideoArea.qml</file>
+        <file>qml/ui/IconButton.qml</file>
+        <file>qml/ui/CustomFileDialog.qml</file>
+        
+        <!-- Widgets -->
+        <file>qml/widgets/FrameTimelineBar.qml</file>
+        <file>qml/widgets/ControlBar.qml</file>
+        <file>qml/widgets/StatusBar.qml</file>
+        <file>qml/widgets/SettingsPanel.qml</file>
+        
+        <!-- Utils -->
+        <file>qml/utils/MediaUtils.qml</file>
+        <file>qml/utils/ThemeManager.qml</file>
+        <file>qml/utils/qmldir</file>
+        
+        <!-- Assets -->
         <file>assets/icons/play.svg</file>
         <file>assets/icons/pause.svg</file>
         <file>assets/icons/stop.svg</file>

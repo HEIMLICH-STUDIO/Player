@@ -52,6 +52,8 @@ CMakeLists.txt.user*
 /build/
 /debug/
 /release/
+/vcpkg/
+/bin/
 
 # Visual Studio
 .vs/
@@ -112,3 +114,6 @@ $RECYCLE.BIN/
 *.exe
 *.out
 *.app 
+
+\
+\\

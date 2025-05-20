@@ -1,0 +1,35 @@
+module mpv
+
+# Main UI
+main 1.0 main.qml
+
+# Components
+IconDisplay 1.0 components/IconDisplay.qml
+MediaControlButton 1.0 components/MediaControlButton.qml
+TransparentButton 1.0 components/TransparentButton.qml
+FrameTimelineBar 1.0 FrameTimelineBar.qml
+
+# Panels
+VideoArea 1.0 panels/VideoArea.qml
+SettingsPanel 1.0 panels/SettingsPanel.qml
+GeneralSettingsTab 1.0 panels/GeneralSettingsTab.qml
+VideoSettingsTab 1.0 panels/VideoSettingsTab.qml
+
+# Controls
+CustomStatusBar 1.0 controls/StatusBar.qml
+ControlBar 1.0 controls/ControlBar.qml
+
+# Popups
+MagnifierTool 1.0 popups/MagnifierTool.qml
+ColorPickerDialog 1.0 popups/ColorPickerDialog.qml
+
+# Utils
+singleton Theme 1.0 Theme.qml
+
+# Additional modules and components
+Utils 1.0 utils/
+
+VideoOutput 1.0 VideoOutput.qml
+PlayerControls 1.0 PlayerControls.qml
+PlaylistView 1.0 PlaylistView.qml
+TestButtons 1.0 TestButtons.qml 

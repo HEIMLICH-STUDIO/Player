@@ -1,0 +1,5 @@
+module Utils
+
+singleton MediaFunctions 1.0 MediaFunctions.qml
+MediaUtils 1.0 MediaUtils.qml
+singleton ThemeManager 1.0 ThemeManager.qml 

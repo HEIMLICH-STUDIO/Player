@@ -124,6 +124,18 @@ if "%BUILD_STATUS%"=="0" (
     echo [INFO] Copying QML files...
     if not exist "%CURRENT_DIR%\build\qml" mkdir "%CURRENT_DIR%\build\qml"
     xcopy /Y /E /I "%CURRENT_DIR%\qml\*" "%CURRENT_DIR%\build\qml\"
+    
+    :: Make sure core QML component folders exist
+    if not exist "%CURRENT_DIR%\build\qml\core" mkdir "%CURRENT_DIR%\build\qml\core"
+    if not exist "%CURRENT_DIR%\build\qml\ui" mkdir "%CURRENT_DIR%\build\qml\ui"
+    if not exist "%CURRENT_DIR%\build\qml\utils" mkdir "%CURRENT_DIR%\build\qml\utils"
+    if not exist "%CURRENT_DIR%\build\qml\widgets" mkdir "%CURRENT_DIR%\build\qml\widgets"
+
+    :: Copy assets directory (icons and other resources)
+    echo [INFO] Copying assets...
+    if not exist "%CURRENT_DIR%\build\assets" mkdir "%CURRENT_DIR%\build\assets"
+    if not exist "%CURRENT_DIR%\build\assets\icons" mkdir "%CURRENT_DIR%\build\assets\icons"
+    xcopy /Y /E /I "%CURRENT_DIR%\assets\icons\*" "%CURRENT_DIR%\build\assets\icons\"
 )
 
 :: Return to original directory and clean up

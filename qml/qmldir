@@ -1,6 +1,24 @@
-module mpv
-singleton Theme 1.0 Theme.qml
-VideoOutput 1.0 VideoOutput.qml
-PlayerControls 1.0 PlayerControls.qml
-PlaylistView 1.0 PlaylistView.qml
-TestButtons 1.0 TestButtons.qml 
+module HyperPlayer
+
+# 메인 UI
+MainWindow 1.0 core/MainWindow.qml
+VideoPlayer 1.0 core/VideoPlayer.qml
+
+# 위젯
+FrameTimelineBar 1.0 widgets/FrameTimelineBar.qml
+ControlBar 1.0 widgets/ControlBar.qml
+StatusBar 1.0 widgets/StatusBar.qml
+SettingsPanel 1.0 widgets/SettingsPanel.qml
+
+# UI 컴포넌트
+VideoArea 1.0 ui/VideoArea.qml
+IconButton 1.0 ui/IconButton.qml
+FileDialog 1.0 ui/CustomFileDialog.qml
+
+# 유틸리티
+MediaUtils 1.0 utils/MediaUtils.qml
+ThemeManager 1.0 utils/ThemeManager.qml
+
+# 싱글톤 모듈
+singleton PlayerCore 1.0 core/PlayerCore.qml
+singleton MediaFunctions 1.0 utils/MediaFunctions.qml 

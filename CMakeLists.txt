@@ -93,11 +93,13 @@ if(MPV_FOUND)
         src/main.cpp
         src/mpvobject.cpp
         src/mpvobject.h
+        src/timelinesync.cpp
+        src/timelinesync.h
         qml.qrc
     )
     
-    # Define MPV_AVAILABLE for conditional compilation
-    add_compile_definitions(MPV_AVAILABLE)
+    # Define HAVE_MPV for conditional compilation
+    add_compile_definitions(HAVE_MPV)
 else()
     message(STATUS "Building HYPER-PLAYER (Basic Version without MPV)")
     set(PROJECT_SOURCES
