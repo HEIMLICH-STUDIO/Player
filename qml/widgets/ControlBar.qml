@@ -41,14 +41,15 @@ Rectangle {
             id: timelineBar
             anchors.fill: parent
             
+            // FrameTimelineBar에 currentFrame, totalFrames, fps 바인딩
             currentFrame: root.currentFrame
             totalFrames: root.totalFrames
             fps: root.fps
             isPlaying: root.isPlaying
             
-            // 시크 요청 처리
+            // seekRequested 시그널을 상위로 올림
             onSeekRequested: function(frame) {
-                seekToFrameRequested(frame);
+                root.seekToFrameRequested(frame)
             }
         }
     }
@@ -200,4 +201,4 @@ Rectangle {
             font.pixelSize: ThemeManager.smallFontSize
         }
     }
-} 
+}

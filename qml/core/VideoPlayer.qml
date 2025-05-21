@@ -10,12 +10,19 @@ import "../widgets"
 // Main video player component
 Item {
     id: root
-    
+
+    // 핵심 상태를 이곳에서 통합 관리
+    property int currentFrame: 0
+    property int totalFrames: 0
+    property real fps: 24.0
+    property string currentFile: ""
+
     // Internal reference properties
     property alias videoArea: videoArea
     property alias controlBar: controlBar
     property alias statusBar: statusBar
     property bool isFullscreen: false
+    property bool isPlaying: videoArea.isPlaying
     
     // Function to safely access the mpv object
     function getMpvObject() {
@@ -77,48 +84,44 @@ Item {
         id: mainLayout
         anchors.fill: parent
         spacing: 0
-        
+
         // Video screen area (set to expand in the layout)
         VideoArea {
             id: videoArea
             Layout.fillWidth: true
             Layout.fillHeight: true
-            
-            // Video-related event handling
+
+            // 프레임/파일 변경 이벤트에서 상태 갱신
             onOnFrameChangedEvent: function(frame) {
-                controlBar.currentFrame = frame
-                statusBar.currentFrame = frame
+                root.currentFrame = frame
             }
-            
             onOnTotalFramesChangedEvent: function(frames) {
-                controlBar.totalFrames = frames
-                statusBar.totalFrames = frames
+                root.totalFrames = frames
             }
-            
             onOnFileChangedEvent: function(filename) {
-                statusBar.currentFile = filename
+                root.currentFile = filename
             }
-            
-            onOnFpsChangedEvent: function(fps) {
-                controlBar.fps = fps
-                statusBar.fps = fps
+            onOnFpsChangedEvent: function(fpsValue) {
+                root.fps = fpsValue
             }
         }
-        
+
         // Timeline/control bar
         ControlBar {
             id: controlBar
             Layout.fillWidth: true
-            isPlaying: videoArea.isPlaying
-            
-            // Control button event handling
+            isPlaying: root.isPlaying
+            currentFrame: root.currentFrame
+            totalFrames: root.totalFrames
+            fps: root.fps
+            // 시그널 연결
+            onSeekToFrameRequested: function(frame) {
+                videoArea.seekToFrame(frame)
+            }
             onOpenFileRequested: videoArea.openFile()
             onPlayPauseRequested: videoArea.playPause()
             onFrameBackRequested: function(frames) { videoArea.stepBackward(frames) }
             onFrameForwardRequested: function(frames) { videoArea.stepForward(frames) }
-            onSeekToFrameRequested: function(frame) {
-                videoArea.seekToFrame(frame)
-            }
             onFullscreenToggleRequested: {
                 isFullscreen = !isFullscreen
                 toggleFullscreen()
@@ -139,11 +142,15 @@ Item {
                 }
             }
         }
-        
+
         // Status bar
         StatusBar {
             id: statusBar
             Layout.fillWidth: true
+            currentFrame: root.currentFrame
+            totalFrames: root.totalFrames
+            fps: root.fps
+            currentFile: root.currentFile
         }
     }
     
@@ -163,4 +170,4 @@ Item {
     Component.onCompleted: {
         console.log("VideoPlayer initialized")
     }
-} 
+}

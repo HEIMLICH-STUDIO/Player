@@ -12,11 +12,11 @@ Rectangle {
     color: ThemeManager.darkControlColor
     
     // 프로퍼티
-    property string currentFile: ""
     property int currentFrame: 0
     property int totalFrames: 0
+    property real fps: 24.0
+    property string currentFile: ""
     property string timecode: "00:00:00:00"
-    property real fps: 24.0  // Add fps property with default value
     
     // 상단 경계선
     Rectangle {
@@ -81,7 +81,4 @@ Rectangle {
         
         timecode = hh + ":" + mm + ":" + ss + ":" + ff;
     }
-    
-    // 프레임이 변경되면 타임코드 업데이트
-    onCurrentFrameChanged: updateTimecode()
-} 
+}

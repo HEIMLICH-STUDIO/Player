@@ -13,7 +13,7 @@ Item {
     // Essential properties
     property var mpvObject: null // MPV 플레이어 객체
     property int currentFrame: 0
-    property int totalFrames: 100
+    property int totalFrames: 0
     property real fps: 24.0
     property bool isPlaying: false
     
@@ -524,4 +524,4 @@ Item {
     Component.onCompleted: {
         frameMarkers.requestPaint();
     }
-} 
+}

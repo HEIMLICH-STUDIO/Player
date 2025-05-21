@@ -17,6 +17,7 @@ Item {
     property string filename: ""
     property real fps: 24.0
     property bool isPlaying: false
+    signal onIsPlayingChangedEvent(bool playing)
     
     // Signals (Note: renamed to avoid duplicates)    
     signal onFrameChangedEvent(int frame)
@@ -202,6 +203,13 @@ Item {
                         }
                     }
                 });
+                
+                if (mpvPlayer.hasOwnProperty('pauseChanged')) {
+                    mpvPlayer.pauseChanged.connect(function(paused) {
+                        root.isPlaying = !paused;
+                        root.onIsPlayingChangedEvent(!paused);
+                    });
+                }
             }
         }
     }
@@ -229,7 +237,7 @@ Item {
         }
         
         try {
-            var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
+            var mpvPlayer = getMpvPlayer();
             if (mpvPlayer) {
                 mpvPlayer.command(["loadfile", path]);
                 showMessage("Loading: " + path);
@@ -242,70 +250,154 @@ Item {
         }
     }
     
-    // Toggle play/pause
+    // 안전하게 MPV 플레이어 객체 가져오기
+    function getMpvPlayer() {
+        try {
+            if (!mpvSupported || !mpvLoader || !mpvLoader.item) {
+                return null;
+            }
+            return mpvLoader.item.mpvPlayer;
+        } catch (e) {
+            console.error("Error getting MPV player:", e);
+            return null;
+        }
+    }
+    
+    // 재생/일시정지 토글
     function playPause() {
-        if (!mpvSupported) {
-            showMessage("Cannot play/pause: MPV support not available");
-            return;
-        }
-        
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
-        if (mpvPlayer) {
-            mpvPlayer.playPause();
+        var player = getMpvPlayer();
+        if (player) {
+            try {
+                player.playPause();
+                isPlaying = !player.pause;
+                onIsPlayingChangedEvent(isPlaying);
+            } catch (e) {
+                console.error("Error toggling play/pause:", e);
+                showMessage("Error toggling play/pause: " + e);
+            }
+        } else {
+            showMessage("Player not initialized");
         }
     }
     
-    // Step forward by frames
+    // 프레임 앞으로 이동
     function stepForward(frames) {
-        if (frames === undefined)
-            frames = 1;
-        if (!mpvSupported) {
-            showMessage("Cannot step: MPV support not available");
-            return;
-        }
-
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
-        if (mpvPlayer) {
-            if (!mpvPlayer.pause) {
-                mpvPlayer.pause = true;
+        if (!frames || frames < 1) frames = 1; // 기본값 설정
+        
+        var player = getMpvPlayer();
+        if (player) {
+            try {
+                // 1. 먼저 일시정지 상태로 변경
+                if (!player.pause) {
+                    player.pause = true;
+                }
+                
+                // 2. 현재 위치 확인
+                var currentPos = player.getProperty("time-pos");
+                // QML에서 숫자인지 확인
+                if (currentPos === undefined || currentPos === null || isNaN(currentPos)) {
+                    showMessage("Cannot determine current position");
+                    return;
+                }
+                
+                // 3. 총 프레임 수 확인
+                var duration = player.getProperty("duration");
+                if (duration === undefined || duration === null || isNaN(duration)) {
+                    showMessage("Cannot determine video duration");
+                    return;
+                }
+                var totalFrames = Math.floor(duration * fps);
+                
+                // 4. 현재 프레임 계산
+                var currentFrame = Math.round(currentPos * fps);
+                
+                // 5. 목표 프레임 계산 (최대 totalFrames-1)
+                var targetFrame = Math.min(totalFrames - 1, currentFrame + frames);
+                
+                // 6. 목표 프레임을 시간으로 변환
+                var targetPos = targetFrame / fps;
+                
+                // 7. 시크 명령 실행
+                console.log("Seeking forward from frame " + currentFrame + " to " + targetFrame);
+                player.command(["seek", targetPos.toString(), "absolute", "exact"]);
+                
+                // 8. 현재 프레임 업데이트
+                player.setProperty("pause", true); // 일시정지 상태 유지
+                frame = targetFrame;
+                onFrameChangedEvent(targetFrame);
+            } catch (e) {
+                console.error("Error stepping forward:", e);
+                showMessage("Error stepping forward: " + e);
             }
-            for (var i = 0; i < frames; ++i) {
-                mpvPlayer.command(["frame-step"]);
-            }
-        }
-    }
-
-    // Step backward by frames
-    function stepBackward(frames) {
-        if (frames === undefined)
-            frames = 1;
-        if (!mpvSupported) {
-            showMessage("Cannot step: MPV support not available");
-            return;
-        }
-
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
-        if (mpvPlayer) {
-            if (!mpvPlayer.pause) {
-                mpvPlayer.pause = true;
-            }
-            for (var i = 0; i < frames; ++i) {
-                mpvPlayer.command(["frame-back-step"]);
-            }
+        } else {
+            showMessage("Player not initialized");
         }
     }
     
-    // Seek to specific frame
-    function seekToFrame(frame) {
-        if (!mpvSupported) {
-            showMessage("Cannot seek: MPV support not available");
-            return;
-        }
+    // 프레임 뒤로 이동
+    function stepBackward(frames) {
+        if (!frames || frames < 1) frames = 1; // 기본값 설정
         
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
-        if (mpvPlayer && fps > 0) {
-            var position = frame / fps;
-            mpvPlayer.command(["seek", position, "absolute", "exact"]);
+        var player = getMpvPlayer();
+        if (player) {
+            try {
+                // 1. 먼저 일시정지 상태로 변경
+                if (!player.pause) {
+                    player.pause = true;
+                }
+                
+                // 2. 현재 위치 확인
+                var currentPos = player.getProperty("time-pos");
+                // QML에서 숫자인지 확인
+                if (currentPos === undefined || currentPos === null || isNaN(currentPos)) {
+                    showMessage("Cannot determine current position");
+                    return;
+                }
+                
+                // 3. 현재 프레임 계산
+                var currentFrame = Math.round(currentPos * fps);
+                
+                // 4. 목표 프레임 계산 (최소 0)
+                var targetFrame = Math.max(0, currentFrame - frames);
+                
+                // 5. 목표 프레임을 시간으로 변환
+                var targetPos = targetFrame / fps;
+                
+                // 6. 시크 명령 실행
+                console.log("Seeking backward from frame " + currentFrame + " to " + targetFrame);
+                player.command(["seek", targetPos.toString(), "absolute", "exact"]);
+                
+                // 7. 현재 프레임 업데이트
+                player.setProperty("pause", true); // 일시정지 상태 유지
+                frame = targetFrame;
+                onFrameChangedEvent(targetFrame);
+            } catch (e) {
+                console.error("Error stepping backward:", e);
+                showMessage("Error stepping backward: " + e);
+            }
+        } else {
+            showMessage("Player not initialized");
+        }
+    }
+    
+    // 특정 프레임으로 이동
+    function seekToFrame(targetFrame) {
+        var player = getMpvPlayer();
+        if (player) {
+            try {
+                // 프레임을 시간으로 변환 (초 단위)
+                var timePos = targetFrame / fps;
+                // mpv seek 명령 사용
+                player.setProperty("time-pos", timePos);
+                // UI 업데이트
+                frame = targetFrame;
+                onFrameChangedEvent(targetFrame);
+            } catch (e) {
+                console.error("Error seeking to frame:", e);
+                showMessage("Error seeking to frame: " + e);
+            }
+        } else {
+            showMessage("Player not initialized");
         }
     }
     

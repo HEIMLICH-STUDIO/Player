@@ -703,7 +703,20 @@ void MpvObject::playPause()
 {
     try {
         bool paused = isPaused();
-    setProperty("pause", !paused);
+        // setProperty 대신 mpv_command_string 직접 사용 (더 안정적)
+        if (paused) {
+            // 재생 시작
+            mpv_command_string(mpv, "set pause no");
+            m_pause = false;
+        } else {
+            // 일시 정지
+            mpv_command_string(mpv, "set pause yes");
+            m_pause = true;
+        }
+        // 상태 변경 알림
+        emit pauseChanged(m_pause);
+        emit playingChanged(!m_pause);
+        update();
     } catch (const std::exception& e) {
         qCritical() << "Exception in playPause:" << e.what();
     }
