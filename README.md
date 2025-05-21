@@ -134,6 +134,23 @@ If you encounter issues with MPV installation:
 - Click and drag on progress bar: Seek
 - Click and drag on volume slider: Change volume
 
+## 개선 및 추가 기능 제안
+
+다음과 같은 기능을 고려해 볼 수 있습니다.
+
+- **재생 목록 관리**: 여러 파일을 연속 재생할 수 있는 플레이리스트 기능
+- **자막 로딩/선택**: 외부 자막 파일을 열고 동적으로 전환하는 기능
+- **스크린샷 및 썸네일 생성**: 현재 프레임을 이미지로 저장하거나 썸네일을 표시
+- **영상/음성 필터**: 색상 보정, 속도 조절 등 다양한 필터 적용 옵션
+- **다국어 UI 지원**: 한국어 외 다른 언어 번역 및 설정 화면 제공
+
+리팩토링 측면에서는 다음을 검토해 보세요.
+
+- QML 컴포넌트 분리 및 모듈화로 코드 가독성 향상
+- `MpvObject`와 `TimelineSync`의 책임 분리 및 테스트 코드 추가
+- 설정 저장/불러오기 로직을 별도 클래스로 구현
+- 예외 처리와 로깅 규칙을 통일하여 안정성 강화
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details. 
