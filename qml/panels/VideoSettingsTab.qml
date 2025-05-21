@@ -412,6 +412,90 @@ ScrollView {
             }
         }
         
+        GroupBox {
+            title: qsTr("Video Orientation")
+            Layout.fillWidth: true
+            
+            background: Rectangle {
+                color: ThemeManager.isDarkTheme ? Qt.darker(ThemeManager.panelColor, 1.1) : Qt.lighter(ThemeManager.panelColor, 0.95)
+                border.color: ThemeManager.borderColor
+                border.width: 1
+                radius: 4
+                y: parent.topPadding - parent.bottomPadding
+                width: parent.width
+                height: parent.height - parent.topPadding + parent.bottomPadding
+            }
+            
+            label: Label {
+                text: parent.title
+                font.bold: true
+                font.family: ThemeManager.defaultFont
+                font.pixelSize: ThemeManager.normalFontSize
+                color: ThemeManager.textColor
+                topPadding: 8
+            }
+            
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                
+                ComboBox {
+                    id: rotationCombo
+                    Layout.fillWidth: true
+                    model: ["No Rotation", "90° Clockwise", "180° Flipped", "90° Counter-clockwise"]
+                    currentIndex: 0
+                    
+                    onCurrentIndexChanged: {
+                        if (mpvPlayer) {
+                            var rotation = 0;
+                            switch(currentIndex) {
+                                case 0: rotation = 0; break;
+                                case 1: rotation = 90; break;
+                                case 2: rotation = 180; break;
+                                case 3: rotation = 270; break;
+                            }
+                            mpvPlayer.setProperty("video-rotate", rotation);
+                        }
+                    }
+                }
+                
+                CheckBox {
+                    id: flipHorizontalCheck
+                    text: qsTr("Flip Horizontally")
+                    checked: false
+                    
+                    onCheckedChanged: {
+                        if (mpvPlayer) {
+                            mpvPlayer.setProperty("video-flip-x", checked);
+                        }
+                    }
+                }
+                
+                CheckBox {
+                    id: flipVerticalCheck
+                    text: qsTr("Flip Vertically")
+                    checked: false
+                    
+                    onCheckedChanged: {
+                        if (mpvPlayer) {
+                            mpvPlayer.setProperty("video-flip-y", checked);
+                        }
+                    }
+                }
+                
+                Button {
+                    text: qsTr("Reset Orientation")
+                    Layout.alignment: Qt.AlignHCenter
+                    
+                    onClicked: {
+                        rotationCombo.currentIndex = 0;
+                        flipHorizontalCheck.checked = false;
+                        flipVerticalCheck.checked = false;
+                    }
+                }
+            }
+        }
+        
         // Spacer
         Item {
             height: 10

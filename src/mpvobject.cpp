@@ -562,7 +562,7 @@ void MpvObject::seekToPosition(double pos)
             finalSeekPos = m_duration - 0.75; // 끝에서 약간 더 떨어진 위치
         }
         
-        qDebug() << "Seeking to:" << finalSeekPos << "(requested:" << pos << ")";
+        qDebug() << "MPV seek to:" << finalSeekPos;
         
         // 1. 먼저 일시정지 설정
         mpv_command_string(mpv, "set pause yes");
@@ -572,10 +572,14 @@ void MpvObject::seekToPosition(double pos)
             emit playingChanged(false);
         }
         
-        // 2. 정확한 시크 수행
+        // 2. 정확한 시크 수행 (두 가지 방법으로 동시에) - 중요 부분
+        // 2.1 MPV 속성 직접 설정 (UI 즉시 반응)
+        mpv_set_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &finalSeekPos);
+        
+        // 2.2 명령어로 정확한 시크 실행 (더 정밀한 프레임 위치)
         mpv_command_string(mpv, QString("seek %1 absolute exact").arg(finalSeekPos).toUtf8().constData());
         
-        // 3. 위치 정보 업데이트
+        // 3. 위치 정보 즉시 업데이트
         m_position = finalSeekPos;
         m_lastPosition = finalSeekPos;
         emit positionChanged(finalSeekPos);
@@ -583,23 +587,61 @@ void MpvObject::seekToPosition(double pos)
         // 4. UI 강제 갱신
         update();
         
-        // 5. 시크 후 정확한 위치 확인을 위한 타이머
+        // 5. 프레임 위치 계산 및 시그널 발생
+        if (m_fps > 0) {
+            int frame = qRound(finalSeekPos * m_fps);
+            emit seekRequested(frame);
+        }
+        
+        // 6. 시크 후 정확한 위치 확인을 위한 타이머 (50ms)
         QTimer::singleShot(50, this, [this, finalSeekPos]() {
             try {
                 // 시크된 위치 확인
+                double verifyPos = finalSeekPos;
+                mpv_set_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &verifyPos);
+                
+                // 위치 정보 다시 업데이트
+                m_position = verifyPos;
+                emit positionChanged(verifyPos);
+                
+                // 프레임 위치 다시 계산 및 시그널 발생
+                if (m_fps > 0) {
+                    int frame = qRound(verifyPos * m_fps);
+                    emit seekRequested(frame);
+                }
+                
+                // 강제 업데이트
+                update();
+            } catch (...) {
+                qWarning() << "Error in first seek verification";
+            }
+        });
+        
+        // 7. 두 번째 검증 타이머 (100ms - 더 확실한 검증)
+        QTimer::singleShot(150, this, [this, finalSeekPos]() {
+            try {
+                // 최종 위치 확인
                 QVariant posVal = getProperty("time-pos");
                 if (posVal.isValid()) {
                     double actualPos = posVal.toDouble();
-                    if (std::abs(actualPos - finalSeekPos) > 0.1) {
-                        // 실제 위치가 요청한 위치와 많이 다르면 다시 시크
-                        qDebug() << "Seek verification: target=" << finalSeekPos 
-                                 << "actual=" << actualPos << "retrying...";
-                        mpv_command_string(mpv, QString("seek %1 absolute exact")
-                                           .arg(finalSeekPos).toUtf8().constData());
-    }
-}
+                    if (std::abs(actualPos - finalSeekPos) > 0.08) {
+                        // 위치가 다르면 다시 정확하게 시크
+                        double fixPos = finalSeekPos;
+                        mpv_set_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &fixPos);
+                        
+                        // 위치 정보 다시 업데이트
+                        m_position = fixPos;
+                        emit positionChanged(fixPos);
+                        
+                        // 프레임 위치 시그널 재발생
+                        if (m_fps > 0) {
+                            int frame = qRound(fixPos * m_fps);
+                            emit seekRequested(frame);
+                        }
+                    }
+                }
             } catch (...) {
-                qWarning() << "Error in seek verification";
+                qWarning() << "Error in second seek verification";
             }
         });
     } catch (const std::exception& e) {

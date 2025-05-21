@@ -62,6 +62,41 @@ Item {
         }
     }
     
+    // Timer for delayed second seek
+    Timer {
+        id: delayedSeekTimer
+        interval: 150
+        repeat: false
+        property int targetFrame: 0
+        
+        onTriggered: {
+            if (mpvObject) {
+                var player = getMpvPlayer();
+                if (player) {
+                    // 5.1 Command for more precise position
+                    var timePos = targetFrame / fps;
+                    player.command(["seek", timePos.toString(), "absolute", "exact"]);
+                    
+                    // 5.2 Maintain paused state (when in pause mode)
+                    if (!isPlaying) {
+                        player.setProperty("pause", true);
+                    }
+                    
+                    // 5.3 Recheck current frame status and emit signal
+                    var actualPos = player.getProperty("time-pos");
+                    if (actualPos !== undefined && actualPos !== null) {
+                        var actualFrame = Math.round(actualPos * fps);
+                        if (Math.abs(actualFrame - targetFrame) > 1) {
+                            console.log("Frame mismatch detected:", actualFrame, "vs", targetFrame);
+                            frame = actualFrame;
+                            onFrameChangedEvent(actualFrame);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     // Placeholder when MPV support is unavailable
     Rectangle {
         id: placeholderRect
@@ -385,13 +420,30 @@ Item {
         var player = getMpvPlayer();
         if (player) {
             try {
-                // 프레임을 시간으로 변환 (초 단위)
+                console.log("직접 시크 요청 - 프레임:", targetFrame);
+                
+                // 1. 일시 정지 상태 확인 (프레임 정확도 위해)
+                if (!isPlaying) {
+                    player.setProperty("pause", true);
+                }
+                
+                // 2. 프레임을 시간으로 변환 (초 단위)
                 var timePos = targetFrame / fps;
-                // mpv seek 명령 사용
+                
+                // 3. 여러 방식으로 시크 명령 전송 (강력한 동기화 위해)
+                // 3.1 MPV 속성 바로 설정 (가장 빠름)
                 player.setProperty("time-pos", timePos);
-                // UI 업데이트
+                
+                // 3.2 명령어로 정확한 시크 수행 (더 정확함)
+                player.command(["seek", timePos.toString(), "absolute", "exact"]);
+                
+                // 4. UI 업데이트
                 frame = targetFrame;
                 onFrameChangedEvent(targetFrame);
+                
+                // 5. 안정적인 동기화를 위해 약간 지연된 두 번째 시크 수행
+                delayedSeekTimer.targetFrame = targetFrame;
+                delayedSeekTimer.restart();
             } catch (e) {
                 console.error("Error seeking to frame:", e);
                 showMessage("Error seeking to frame: " + e);

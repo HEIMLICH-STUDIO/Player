@@ -30,13 +30,6 @@ Item {
         anchors.fill: parent
         visible: true
         
-        // Fix video rotation issue - 180 degree rotation
-        transform: Rotation {
-            origin.x: mpvObject.width/2
-            origin.y: mpvObject.height/2
-            angle: 180
-        }
-        
         // Custom property to track if position changed
         property real lastPosition: 0
         
@@ -52,6 +45,28 @@ Item {
                 if (pos !== undefined && pos !== null && Math.abs(pos - mpvObject.lastPosition) > 0.01) {
                     mpvObject.lastPosition = pos;
                     videoArea.parent.updateFrameInfo();
+                }
+            }
+        }
+        
+        // 항상 동기화를 유지하는 타이머 추가
+        Timer {
+            interval: 100  // 10fps (리소스 절약)
+            running: mpvObject.filename !== ""  // 파일이 로드된 경우 항상 실행
+            repeat: true
+            onTriggered: {
+                if (mpvObject.duration > 0) {
+                    // 현재 위치 확인
+                    let pos = mpvObject.getProperty("time-pos");
+                    if (pos !== undefined && pos !== null) {
+                        // 현재 프레임 계산
+                        let currentFrameFromPos = Math.round(pos * fps);
+                        // 계산된 프레임과 현재 표시 프레임이 다르면 업데이트
+                        if (Math.abs(currentFrameFromPos - currentFrame) > 1) {
+                            currentFrame = currentFrameFromPos;
+                            videoArea.parent.updateFrameInfo();
+                        }
+                    }
                 }
             }
         }
@@ -73,6 +88,13 @@ Item {
                             "width=", width, 
                             "height=", height,
                             "visible=", visible);
+                
+                // Set initial video orientation using MPV properties
+                // These are more reliable than QML transforms
+                mpvObject.setProperty("video-rotate", "0");    // No rotation
+                mpvObject.setProperty("video-flip-x", "no");   // No horizontal flip
+                mpvObject.setProperty("video-flip-y", "no");   // No vertical flip
+                
             } catch (e) {
                 console.error("MPV 객체 초기화 중 오류:", e);
             }
@@ -101,16 +123,33 @@ Item {
                         mpvObject.resetEndReached();
                     }
                     
-                    // 4. MPV 직접 시크 함수 호출
+                    // 4. 강제 일시정지 (안정성 향상)
+                    if (!mpvObject.pause) {
+                        mpvObject.pause = true;
+                    }
+                    
+                    // 5. MPV 직접 시크 함수 연속 호출 (더 정확한 이동)
                     mpvObject.seekToPosition(pos);
                     
-                    // 5. 현재 프레임 정보 업데이트
+                    // 6. 현재 프레임 정보 업데이트
                     currentFrame = safeFrame;
                     
-                    // 6. UI 강제 업데이트
+                    // 7. 추가 시크 타이머 (더 안정적인 시크를 위해)
+                    Qt.setTimeout(function() {
+                        if (mpvObject) {
+                            mpvObject.seekToPosition(pos);
+                        }
+                    }, 80);
+                    
+                    // 8. UI 강제 업데이트
                     videoArea.parent.updateFrameInfo();
+                    
+                    // 9. 모든 타이머 재시작 (완전한 동기화)
+                    Qt.setTimeout(function() {
+                        videoArea.parent.updateFrameInfo();
+                    }, 150);
                 } catch (e) {
-                    // console.error("Seek error:", e);
+                    console.error("Seek error:", e);
                 }
             }
         }

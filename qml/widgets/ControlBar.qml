@@ -18,6 +18,9 @@ Rectangle {
     property int totalFrames: 0
     property real fps: 24.0
     
+    // 중요: MPV 객체 참조 추가
+    property var mpvObject: null
+    
     // 시그널
     signal openFileRequested()
     signal playPauseRequested()
@@ -47,9 +50,14 @@ Rectangle {
             fps: root.fps
             isPlaying: root.isPlaying
             
+            // 중요: MPV 객체 전달
+            mpvObject: root.mpvObject
+            
             // seekRequested 시그널을 상위로 올림
             onSeekRequested: function(frame) {
-                root.seekToFrameRequested(frame)
+                console.log("ControlBar: seek requested to frame " + frame);
+                root.currentFrame = frame; // 중요: 먼저 내부 상태 업데이트
+                root.seekToFrameRequested(frame);
             }
         }
     }

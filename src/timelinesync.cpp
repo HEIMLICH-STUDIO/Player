@@ -255,40 +255,101 @@ void TimelineSync::onMpvPauseChanged(bool paused)
     }
 }
 
-// 동기화 타이머 처리 - 주기적으로 현재 프레임 업데이트
+// 동기화 타이머 핸들러 - 재생 중 실시간 동기화
 void TimelineSync::handleSyncTimer()
 {
-    if (!m_mpv || m_isDragging || !m_autoSync || m_seekInProgress) return;
+    if (!m_mpv || m_isDragging || m_seekInProgress) return;
     
     QMutexLocker locker(&m_syncMutex);
     
-    // 재생 중일 때만 실시간 프레임 업데이트
-    if (m_isPlaying) {
-        // MPV에서 직접 현재 위치 가져오기
-        double currentPos = m_mpv->position();
-        if (std::abs(m_position - currentPos) > 0.00001) {
-            m_position = currentPos;
-            updateFrameInfo();
+    try {
+        // 현재 위치 가져오기
+        QVariant posVar = m_mpv->getProperty("time-pos");
+        if (!posVar.isValid()) return;
+        
+        double newPos = posVar.toDouble();
+        
+        // 위치가 변경된 경우만 업데이트
+        if (std::abs(newPos - m_position) > 0.01) {
+            m_position = newPos;
+            
+            // 현재 프레임 계산하여 업데이트
+            int newFrame = calculateFrameFromPosition(newPos);
+            if (newFrame != m_currentFrame) {
+                m_currentFrame = newFrame;
+                emit currentFrameChanged(m_currentFrame);
+            }
+            
             emit positionChanged(m_position);
         }
+        
+        // 재생 상태 확인
+        QVariant pauseVar = m_mpv->getProperty("pause");
+        if (pauseVar.isValid()) {
+            bool isPaused = pauseVar.toBool();
+            bool newPlayingState = !isPaused;
+            
+            if (m_isPlaying != newPlayingState) {
+                m_isPlaying = newPlayingState;
+                emit playingStateChanged(m_isPlaying);
+            }
+        }
+        
+        // 정기적으로 총 프레임 수 확인 (동영상이 로드된 경우)
+        static int frameCountCheck = 0;
+        if (++frameCountCheck % 60 == 0 && m_mpv->duration() > 0) {
+            calculateTotalFrames();
+            frameCountCheck = 0;
+        }
+    } catch (...) {
+        qWarning() << "Error in sync timer handler";
     }
 }
 
-// 검증 타이머 처리 - 시크 후 위치 확인
+// 검증 타이머 핸들러 - 시크 후 위치 검증
 void TimelineSync::handleVerificationTimer()
 {
     if (!m_mpv) return;
     
     QMutexLocker locker(&m_syncMutex);
     
-    // MPV에서 최종 위치 가져오기
-    double exactPos = m_mpv->getProperty("time-pos").toDouble();
-    
-    // 위치 차이가 크면 프레임 업데이트
-    if (std::abs(m_position - exactPos) > 0.00001) {
-        m_position = exactPos;
-        updateFrameInfo();
-        emit positionChanged(m_position);
+    try {
+        // 정확한 현재 위치 가져오기
+        QVariant posVar = m_mpv->getProperty("time-pos");
+        if (!posVar.isValid()) return;
+        
+        double verifiedPos = posVar.toDouble();
+        
+        // 이전 위치와 비교하여 업데이트
+        if (std::abs(verifiedPos - m_position) > 0.01) {
+            // 위치 업데이트
+            m_position = verifiedPos;
+            emit positionChanged(m_position);
+            
+            // 프레임 업데이트
+            int verifiedFrame = calculateFrameFromPosition(verifiedPos);
+            
+            // 현재 프레임 업데이트 (필요한 경우)
+            if (verifiedFrame != m_currentFrame) {
+                m_currentFrame = verifiedFrame;
+                emit currentFrameChanged(m_currentFrame);
+            }
+            
+            // 위치가 크게 다른 경우, 직접 다시 시크
+            if (m_isDragging && m_mpv->isPaused()) {
+                // 드래그 중이면 MPV 위치를 정확하게 동기화
+                double targetPos = calculatePositionFromFrame(m_currentFrame);
+                m_mpv->seekToPosition(targetPos);
+            }
+        }
+        
+        // 드래그 중이 아니면 시크 완료로 표시
+        if (!m_isDragging) {
+            m_seekInProgress = false;
+        }
+    } catch (...) {
+        qWarning() << "Error in verification timer handler";
+        m_seekInProgress = false;
     }
 }
 
@@ -297,24 +358,29 @@ void TimelineSync::completeSeek()
 {
     QMutexLocker locker(&m_syncMutex);
     
-    // 시크 완료 플래그 해제
-    m_seekInProgress = false;
-    
     // 최종 위치 확인
     if (m_mpv) {
-        double finalPos = m_mpv->getProperty("time-pos").toDouble();
-        if (std::abs(m_position - finalPos) > 0.00001) {
+        QVariant posVar = m_mpv->getProperty("time-pos");
+        if (posVar.isValid()) {
+            double finalPos = posVar.toDouble();
             m_position = finalPos;
-            updateFrameInfo();
+            
+            // 최종 프레임 계산
+            int finalFrame = calculateFrameFromPosition(finalPos);
+            if (finalFrame != m_currentFrame) {
+                m_currentFrame = finalFrame;
+                emit currentFrameChanged(m_currentFrame);
+            }
+            
             emit positionChanged(m_position);
         }
     }
     
-    // 시크 완료 신호 발생
-    emit seekCompleted();
+    // 시크 완료 표시
+    m_seekInProgress = false;
+    m_updatePending = false;
     
-    // 자동 동기화 재개
-    m_autoSync = true;
+    emit seekCompleted();
 }
 
 // 프레임 정보 업데이트

@@ -236,6 +236,29 @@ ApplicationWindow {
             fps: root.fps
             isPlaying: videoArea.mpvPlayer ? videoArea.mpvPlayer.isPlaying : false
             
+            // 강화된 시크 처리
+            onSeekRequested: function(frame) {
+                if (videoArea.mpvPlayer) {
+                    // 프레임 바로 업데이트 (UI 반응성)
+                    root.currentFrame = frame;
+                    
+                    // MPV 직접 호출 (최대 안정성)
+                    if (typeof videoArea.mpvPlayer.seekToPosition === "function") {
+                        var pos = frame / fps;
+                        videoArea.mpvPlayer.seekToPosition(pos);
+                        
+                        // 시크 후 100ms 지연 시크 (정확도 향상)
+                        Qt.setTimeout(function() {
+                            if (videoArea.mpvPlayer) {
+                                videoArea.mpvPlayer.seekToPosition(pos);
+                            }
+                        }, 100);
+                    } else {
+                        videoArea.mpvPlayer.frameStep(frame - root.currentFrame);
+                    }
+                }
+            }
+            
             // Debug border
             Rectangle {
                 visible: showDebugBorders

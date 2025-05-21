@@ -114,9 +114,14 @@ Item {
             currentFrame: root.currentFrame
             totalFrames: root.totalFrames
             fps: root.fps
+            
+            // 중요: MPV 객체 직접 연결
+            mpvObject: getMpvObject()
+            
             // 시그널 연결
             onSeekToFrameRequested: function(frame) {
-                videoArea.seekToFrame(frame)
+                console.log("VideoPlayer: 프레임 시크 요청 " + frame);
+                videoArea.seekToFrame(frame);
             }
             onOpenFileRequested: videoArea.openFile()
             onPlayPauseRequested: videoArea.playPause()
