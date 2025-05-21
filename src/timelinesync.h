@@ -35,6 +35,7 @@ public:
     Q_INVOKABLE void beginDragging();
     Q_INVOKABLE void endDragging();
     Q_INVOKABLE void forceUpdate();
+    Q_INVOKABLE void stepFrames(int frames);
     
     // 속성 접근자
     int currentFrame() const { return m_currentFrame; }

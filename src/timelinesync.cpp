@@ -187,6 +187,16 @@ void TimelineSync::forceUpdate()
     emit durationChanged(m_duration);
 }
 
+// Step forward or backward by a number of frames
+void TimelineSync::stepFrames(int frames)
+{
+    if (!m_mpv || frames == 0)
+        return;
+
+    m_mpv->frameStep(frames);
+    forceUpdate();
+}
+
 // 드래그 상태 설정
 void TimelineSync::setIsDragging(bool dragging)
 {

@@ -12,6 +12,7 @@ Item {
     
     // Essential properties
     property var mpvObject: null // MPV 플레이어 객체
+    property var timelineSync: null // optional TimelineSync for precise control
     property int currentFrame: 0
     property int totalFrames: 100
     property real fps: 24.0
@@ -86,6 +87,11 @@ Item {
     
     // 프레임 정밀 시크 함수 - 영상 끝 부분 문제 해결
     function preciseFrameSeek(frame, exact) {
+        if (timelineSync) {
+            timelineSync.seekToFrame(frame, exact !== false);
+            return;
+        }
+
         // MPV가 없거나 영상 길이가 없을 경우 무시
         if (!mpvObject || typeof mpvObject.duration === 'undefined' || mpvObject.duration <= 0) return;
         
@@ -375,6 +381,7 @@ Item {
             try {
                 // 1. 드래그 시작
             isDragging = true;
+            if (timelineSync) timelineSync.beginDragging();
                 
                 // 2. 정확한 좌표 계산 (범위 제한 적용)
                 var clampedX = Math.min(Math.max(0, mouseX), width);
@@ -436,24 +443,17 @@ Item {
         onReleased: {
             if (isDragging) {
                 try {
-                    // console.log("실행: 드래그 완료, 최종 프레임:", dragFrame);
-                
-                    // 1. 정확한 시간 위치 계산
-                    var pos = dragFrame / fps;
-                
-                    // 2. 안전한 범위 계산
-                    if (mpvObject && mpvObject.duration > 0) {
-                        // 3. MPV로 직접 시크 요청
+                    if (timelineSync) {
+                        timelineSync.seekToFrame(dragFrame, true);
+                        timelineSync.endDragging();
+                    } else if (mpvObject && mpvObject.duration > 0) {
+                        var pos = dragFrame / fps;
                         mpvObject.seekToPosition(pos);
                     }
-                    
-                    // 4. 드래그 상태 초기화
-                isDragging = false;
-                
-                    // 5. 검증 타이머 시작
+
+                    isDragging = false;
                     verifySeekTimer.restart();
                 } catch (e) {
-                    // console.error("드래그 종료 오류:", e);
                     isDragging = false;
                     seekInProgress = false;
                 }
@@ -467,22 +467,18 @@ Item {
         interval: 80  // 약간 더 높은 지연 (안정성)
         repeat: false
         onTriggered: {
-            if (isDragging && mpvObject) {
+            if (isDragging) {
                 try {
-                    // console.log("실행: 드래그 중 시크, 프레임:", dragFrame);
-                    
-                    // 정확한 시간 위치 계산
-                    var pos = dragFrame / fps;
-                    
-                    // MPV 명령 직접 사용하여 즉시 시크 (UI 업데이트 목적)
-                    mpvObject.command(["seek", pos, "absolute", "exact"]);
-                
-                    // 현재 위치 정보 업데이트
-                    var framesPerSecond = fps > 0 ? fps : 24.0;
-                    var frame = Math.round(pos * framesPerSecond);
-                    currentFrame = frame;
+                    if (timelineSync) {
+                        timelineSync.seekToFrame(dragFrame, true);
+                    } else if (mpvObject) {
+                        var pos = dragFrame / fps;
+                        mpvObject.command(["seek", pos, "absolute", "exact"]);
+                        var framesPerSecond = fps > 0 ? fps : 24.0;
+                        var frame = Math.round(pos * framesPerSecond);
+                        currentFrame = frame;
+                    }
                 } catch (e) {
-                    // console.error("디바운스 시크 오류:", e);
                 }
             }
         }

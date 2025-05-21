@@ -17,6 +17,11 @@ Item {
     property string filename: ""
     property real fps: 24.0
     property bool isPlaying: false
+
+    // helper to expose TimelineSync instance
+    function getTimelineSync() {
+        return mpvLoader.item ? mpvLoader.item.timelineSync : null
+    }
     
     // Signals (Note: renamed to avoid duplicates)    
     signal onFrameChangedEvent(int frame)
@@ -165,43 +170,76 @@ Item {
             // Function to connect MPV events
             function connectMpvEvents() {
                 if (!mpvPlayer) return;
-                
-                mpvPlayer.positionChanged.connect(function(position) {
-                    // Update current frame
-                    if (position >= 0 && root.fps > 0) {
-                        var frame = Math.round(position * root.fps);
+
+                if (timelineSync) {
+                    timelineSync.connectMpv(mpvPlayer);
+
+                    timelineSync.currentFrameChanged.connect(function(frame) {
                         root.frame = frame;
                         root.onFrameChangedEvent(frame);
-                    }
-                });
-                
-                mpvPlayer.durationChanged.connect(function(duration) {
-                    // Update total frame count
-                    if (duration > 0 && root.fps > 0) {
-                        var totalFrames = Math.ceil(duration * root.fps);
-                        root.frames = totalFrames;
-                        root.onTotalFramesChangedEvent(totalFrames);
-                    }
-                });
-                
-                mpvPlayer.filenameChanged.connect(function(filename) {
-                    root.filename = filename;
-                    root.onFileChangedEvent(filename);
-                });
-                
-                mpvPlayer.fpsChanged.connect(function(fps) {
-                    if (fps > 0) {
+                    });
+
+                    timelineSync.totalFramesChanged.connect(function(frames) {
+                        root.frames = frames;
+                        root.onTotalFramesChangedEvent(frames);
+                    });
+
+                    timelineSync.fpsChanged.connect(function(fps) {
                         root.fps = fps;
                         root.onFpsChangedEvent(fps);
-                        
-                        // When FPS changes, update total frame count as well
-                        if (mpvPlayer.duration > 0) {
-                            var totalFrames = Math.ceil(mpvPlayer.duration * root.fps);
+                    });
+
+                    timelineSync.playingStateChanged.connect(function(p) {
+                        root.isPlaying = p;
+                    });
+
+                    timelineSync.durationChanged.connect(function(d) {
+                        // update total frames when duration changes
+                        if (d > 0 && root.fps > 0) {
+                            var totalFrames = Math.ceil(d * root.fps);
                             root.frames = totalFrames;
                             root.onTotalFramesChangedEvent(totalFrames);
                         }
-                    }
-                });
+                    });
+                } else {
+                    mpvPlayer.positionChanged.connect(function(position) {
+                        if (position >= 0 && root.fps > 0) {
+                            var frame = Math.round(position * root.fps);
+                            root.frame = frame;
+                            root.onFrameChangedEvent(frame);
+                        }
+                    });
+
+                    mpvPlayer.durationChanged.connect(function(duration) {
+                        if (duration > 0 && root.fps > 0) {
+                            var totalFrames = Math.ceil(duration * root.fps);
+                            root.frames = totalFrames;
+                            root.onTotalFramesChangedEvent(totalFrames);
+                        }
+                    });
+
+                    mpvPlayer.filenameChanged.connect(function(filename) {
+                        root.filename = filename;
+                        root.onFileChangedEvent(filename);
+                    });
+
+                    mpvPlayer.fpsChanged.connect(function(fps) {
+                        if (fps > 0) {
+                            root.fps = fps;
+                            root.onFpsChangedEvent(fps);
+
+                            if (mpvPlayer.duration > 0) {
+                                var totalFrames = Math.ceil(mpvPlayer.duration * root.fps);
+                                root.frames = totalFrames;
+                                root.onTotalFramesChangedEvent(totalFrames);
+                            }
+                        }
+                    });
+
+                    mpvPlayer.pauseChanged.connect(function(paused){
+                        root.isPlaying = !paused;
+                    });
+                }
             }
         }
     }
@@ -264,13 +302,16 @@ Item {
             return;
         }
 
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
-        if (mpvPlayer) {
-            if (!mpvPlayer.pause) {
-                mpvPlayer.pause = true;
-            }
-            for (var i = 0; i < frames; ++i) {
-                mpvPlayer.command(["frame-step"]);
+        var sync = getTimelineSync();
+        if (sync) {
+            sync.stepFrames(frames);
+        } else {
+            var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
+            if (mpvPlayer) {
+                if (!mpvPlayer.pause) {
+                    mpvPlayer.pause = true;
+                }
+                mpvPlayer.frameStep(frames);
             }
         }
     }
@@ -284,13 +325,16 @@ Item {
             return;
         }
 
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
-        if (mpvPlayer) {
-            if (!mpvPlayer.pause) {
-                mpvPlayer.pause = true;
-            }
-            for (var i = 0; i < frames; ++i) {
-                mpvPlayer.command(["frame-back-step"]);
+        var sync = getTimelineSync();
+        if (sync) {
+            sync.stepFrames(-frames);
+        } else {
+            var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
+            if (mpvPlayer) {
+                if (!mpvPlayer.pause) {
+                    mpvPlayer.pause = true;
+                }
+                mpvPlayer.frameStep(-frames);
             }
         }
     }
@@ -302,10 +346,15 @@ Item {
             return;
         }
         
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
-        if (mpvPlayer && fps > 0) {
-            var position = frame / fps;
-            mpvPlayer.command(["seek", position, "absolute", "exact"]);
+        var sync = getTimelineSync();
+        if (sync) {
+            sync.seekToFrame(frame, true);
+        } else {
+            var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
+            if (mpvPlayer && fps > 0) {
+                var position = frame / fps;
+                mpvPlayer.command(["seek", position, "absolute", "exact"]);
+            }
         }
     }
     
