@@ -133,6 +133,15 @@ Rectangle {
             }
         }
         
+        // 초기화 시 Canvas를 강제로 그리도록 함
+        Component.onCompleted: {
+            // 시작 시 즉시 첫 렌더링 수행
+            Qt.callLater(function() {
+                colorOverlay.requestPaint();
+                console.log("Canvas initialized for icon:", root.iconSource);
+            });
+        }
+        
         // Update canvas when color or image changes
         Connections {
             target: root
@@ -143,6 +152,7 @@ Rectangle {
             target: iconImage
             function onStatusChanged() {
                 if (iconImage.status === Image.Ready) {
+                    console.log("Icon loaded:", root.iconSource);
                     colorOverlay.requestPaint();
                 }
             }

@@ -95,7 +95,22 @@ QtObject {
         }
     }
     
+    // 아이콘 및 UI 색상 강제 새로고침
+    function refreshColors() {
+        // 시스템에 현재 테마 변경됨을 알림 (바인딩 갱신 효과)
+        var temp = currentTheme
+        currentTheme = ""
+        currentTheme = temp
+        
+        console.log("Theme colors refreshed")
+    }
+    
     Component.onCompleted: {
         console.log("ThemeManager initialized with theme:", currentTheme)
+        
+        // 앱 시작 시 300ms 후에 색상 강제 새로고침 (모든 컴포넌트 로드 후)
+        Qt.callLater(function() {
+            refreshColors()
+        })
     }
 } 

@@ -93,5 +93,18 @@ Window {
     // 컴포넌트 초기화
     Component.onCompleted: {
         console.log("MainWindow initialized")
+        
+        // 앱 시작 시 모든 컴포넌트가 로드된 후에 색상 초기화
+        Qt.callLater(function() {
+            // 컬러 테마 강제 새로고침
+            ThemeManager.refreshColors()
+            
+            // 모든 아이콘이 제대로 렌더링되도록 직접 VideoPlayer 갱신 요청
+            if (videoPlayer && videoPlayer.controlBar) {
+                console.log("Refreshing control bar UI")
+                videoPlayer.controlBar.visible = false
+                videoPlayer.controlBar.visible = true
+            }
+        })
     }
 } 

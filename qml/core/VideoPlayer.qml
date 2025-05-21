@@ -52,22 +52,8 @@ Item {
             return null;
         }
         
-        // Explicitly check if mpvLoader exists
-        var loader = videoArea.mpvLoader;
-        if (!loader) {
-            console.error("VideoPlayer: mpvLoader is null");
-            return null;
-        }
-        
-        // Explicitly check if loader.item exists
-        var item = loader.item;
-        if (!item) {
-            console.error("VideoPlayer: mpvLoader.item is null");
-            return null;
-        }
-        
-        // Check if mpvPlayer exists
-        var player = item.mpvPlayer;
+        // 직접 mpvPlayer 속성 접근 (VideoArea에서 추가된 새 속성)
+        var player = videoArea.mpvPlayer;
         if (!player) {
             console.error("VideoPlayer: mpvPlayer is null");
             return null;
@@ -90,6 +76,14 @@ Item {
             // ControlBar에서 VideoArea로 직접 전달되므로 여기서는 무시한다.
             if (controlBar && controlBar.frameTimeline &&
                 controlBar.frameTimeline.isDragging) {
+                console.log("타임라인 드래그 중 - MPV 싱크 이벤트 무시함");
+                return;
+            }
+            
+            // 드래그 완료 직후 짧은 시간 동안도 MPV 싱크 이벤트 무시
+            if (controlBar && controlBar.frameTimeline &&
+                controlBar.frameTimeline.recentlyDragged) {
+                console.log("타임라인 드래그 후 안정화 중 - MPV 싱크 이벤트 무시함");
                 return;
             }
 

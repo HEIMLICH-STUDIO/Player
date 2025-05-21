@@ -49,6 +49,7 @@ Item {
     property int dragFrame: 0  // Store the exact frame being dragged to
     property int lastSentFrame: -1  // Track the last frame we sent for seeking
     property bool throttleSeeking: true  // Throttle seeking while dragging for better performance
+    property bool recentlyDragged: false  // 드래그 후 안정화 기간 플래그
     
     // 플레이헤드 직접 위치 결정 (외부에서 설정된 값이 있으면 우선 사용)
     property real playheadPosition: getExactFramePosition(_internalFrame)
@@ -595,22 +596,27 @@ Item {
                     
                     // 7. 드래그 상태 초기화
                     isDragging = false;
+                    
+                    // 8. 드래그 후 안정화 플래그 설정 및 타이머 시작
+                    recentlyDragged = true;
+                    dragStabilizationTimer.restart();
+                    console.log("드래그 안정화 타이머 시작 - 다음 800ms 동안 MPV 싱크 이벤트 무시");
                 
-                    // 8. 검증 타이머 시작 (더 길게 설정)
+                    // 9. 검증 타이머 시작 (더 길게 설정)
                     verifySeekTimer.interval = 100;
                     verifySeekTimer.restart();
                     
-                    // 9. 강제 동기화 타이머
+                    // 10. 강제 동기화 타이머
                     forceUpdateTimer.restart();
                     
-                    // 10. 복구 타이머 시작
+                    // 11. 복구 타이머 시작
                     recoveryTimer.interval = 150;
                     recoveryTimer.restart();
                     
-                    // 11. MPV 동기화를 위한 두 번째 시크
+                    // 12. MPV 동기화를 위한 두 번째 시크
                     secondSyncTimer.start();
                     
-                    // 12. 최종 확인
+                    // 13. 최종 확인
                     finalSyncTimer.dragFrame = dragFrame;
                     finalSyncTimer.start();
                 } catch (e) {
@@ -707,6 +713,17 @@ Item {
                     console.error("최종 동기화 오류:", e);
                 }
             }
+        }
+    }
+    
+    // 드래그 안정화 타이머 - 드래그 후 MPV 싱크 이벤트를 일시적으로 차단함
+    Timer {
+        id: dragStabilizationTimer
+        interval: 800  // 드래그 후 800ms 동안 MPV 싱크 이벤트 무시
+        repeat: false
+        onTriggered: {
+            recentlyDragged = false;
+            console.log("드래그 안정화 기간 종료");
         }
     }
     

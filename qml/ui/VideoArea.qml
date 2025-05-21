@@ -17,6 +17,11 @@ Item {
     property string filename: ""
     property real fps: 24.0
     property bool isPlaying: false
+    
+    // 중요: mpvLoader와 mpvPlayer를 직접 노출
+    property alias mpvLoader: mpvLoader
+    property var mpvPlayer: mpvLoader.item ? mpvLoader.item.mpvPlayer : null
+    
     signal onIsPlayingChangedEvent(bool playing)
     
     // Signals (Note: renamed to avoid duplicates)    
@@ -142,6 +147,11 @@ Item {
                         mpvPlayer = component;
                         console.log("MPV component created successfully");
                         
+                        // 진행 표시줄(OSD) 비활성화
+                        mpvPlayer.setProperty("osd-level", 0);        // OSD 레벨 완전 비활성화
+                        mpvPlayer.setProperty("osd-bar", "no");       // 타임라인 바 비활성화
+                        mpvPlayer.setProperty("osd-on-seek", "no");   // 시크 시 OSD 표시 안함
+                        
                         // Connect events
                         connectMpvEvents();
                     }
@@ -158,7 +168,7 @@ Item {
                         console.log("TimelineSync component created successfully");
                     }
                 } catch (e) {
-                    console.error("Failed to create MPV components:", e);
+                    console.error("Failed to create components:", e);
                     root.showMessage("Error: " + e);
                 }
             }
@@ -237,7 +247,6 @@ Item {
         }
         
         try {
-            var mpvPlayer = getMpvPlayer();
             if (mpvPlayer) {
                 mpvPlayer.command(["loadfile", path]);
                 showMessage("Loading: " + path);
@@ -250,26 +259,12 @@ Item {
         }
     }
     
-    // 안전하게 MPV 플레이어 객체 가져오기
-    function getMpvPlayer() {
-        try {
-            if (!mpvSupported || !mpvLoader || !mpvLoader.item) {
-                return null;
-            }
-            return mpvLoader.item.mpvPlayer;
-        } catch (e) {
-            console.error("Error getting MPV player:", e);
-            return null;
-        }
-    }
-    
     // 재생/일시정지 토글
     function playPause() {
-        var player = getMpvPlayer();
-        if (player) {
+        if (mpvPlayer) {
             try {
-                player.playPause();
-                isPlaying = !player.pause;
+                mpvPlayer.playPause();
+                isPlaying = !mpvPlayer.pause;
                 onIsPlayingChangedEvent(isPlaying);
             } catch (e) {
                 console.error("Error toggling play/pause:", e);
@@ -284,16 +279,15 @@ Item {
     function stepForward(frames) {
         if (!frames || frames < 1) frames = 1; // 기본값 설정
         
-        var player = getMpvPlayer();
-        if (player) {
+        if (mpvPlayer) {
             try {
                 // 1. 먼저 일시정지 상태로 변경
-                if (!player.pause) {
-                    player.pause = true;
+                if (!mpvPlayer.pause) {
+                    mpvPlayer.pause = true;
                 }
                 
                 // 2. 현재 위치 확인
-                var currentPos = player.getProperty("time-pos");
+                var currentPos = mpvPlayer.getProperty("time-pos");
                 // QML에서 숫자인지 확인
                 if (currentPos === undefined || currentPos === null || isNaN(currentPos)) {
                     showMessage("Cannot determine current position");
@@ -301,7 +295,7 @@ Item {
                 }
                 
                 // 3. 총 프레임 수 확인
-                var duration = player.getProperty("duration");
+                var duration = mpvPlayer.getProperty("duration");
                 if (duration === undefined || duration === null || isNaN(duration)) {
                     showMessage("Cannot determine video duration");
                     return;
@@ -319,10 +313,10 @@ Item {
                 
                 // 7. 시크 명령 실행
                 console.log("Seeking forward from frame " + currentFrame + " to " + targetFrame);
-                player.command(["seek", targetPos.toString(), "absolute", "exact"]);
+                mpvPlayer.command(["seek", targetPos.toString(), "absolute", "exact"]);
                 
                 // 8. 현재 프레임 업데이트
-                player.setProperty("pause", true); // 일시정지 상태 유지
+                mpvPlayer.setProperty("pause", true); // 일시정지 상태 유지
                 frame = targetFrame;
                 onFrameChangedEvent(targetFrame);
             } catch (e) {
@@ -338,16 +332,15 @@ Item {
     function stepBackward(frames) {
         if (!frames || frames < 1) frames = 1; // 기본값 설정
         
-        var player = getMpvPlayer();
-        if (player) {
+        if (mpvPlayer) {
             try {
                 // 1. 먼저 일시정지 상태로 변경
-                if (!player.pause) {
-                    player.pause = true;
+                if (!mpvPlayer.pause) {
+                    mpvPlayer.pause = true;
                 }
                 
                 // 2. 현재 위치 확인
-                var currentPos = player.getProperty("time-pos");
+                var currentPos = mpvPlayer.getProperty("time-pos");
                 // QML에서 숫자인지 확인
                 if (currentPos === undefined || currentPos === null || isNaN(currentPos)) {
                     showMessage("Cannot determine current position");
@@ -365,10 +358,10 @@ Item {
                 
                 // 6. 시크 명령 실행
                 console.log("Seeking backward from frame " + currentFrame + " to " + targetFrame);
-                player.command(["seek", targetPos.toString(), "absolute", "exact"]);
+                mpvPlayer.command(["seek", targetPos.toString(), "absolute", "exact"]);
                 
                 // 7. 현재 프레임 업데이트
-                player.setProperty("pause", true); // 일시정지 상태 유지
+                mpvPlayer.setProperty("pause", true); // 일시정지 상태 유지
                 frame = targetFrame;
                 onFrameChangedEvent(targetFrame);
             } catch (e) {
@@ -382,13 +375,12 @@ Item {
     
     // 특정 프레임으로 이동 - 강화된 구현
     function seekToFrame(targetFrame) {
-        var player = getMpvPlayer();
-        if (player) {
+        if (mpvPlayer) {
             try {
                 console.log("VideoArea: 프레임 시크 요청 -", targetFrame);
                 
                 // 1. 영상 위치 검증
-                if (typeof player.duration !== 'undefined' && player.duration <= 0) {
+                if (typeof mpvPlayer.duration !== 'undefined' && mpvPlayer.duration <= 0) {
                     console.error("유효한 영상이 없음 - 시크 불가");
                     return;
                 }
@@ -407,19 +399,19 @@ Item {
                 
                 // 4. MPV 강력한 시크 구현 - 모든 메서드 시도
                 // 4.1. 직접 속성 설정 (즉각 반응)
-                player.setProperty("time-pos", timePos);
+                mpvPlayer.setProperty("time-pos", timePos);
                 
                 // 4.2. 명령 인터페이스 사용 (정확도)
-                player.command(["seek", timePos.toString(), "absolute", "exact"]);
+                mpvPlayer.command(["seek", timePos.toString(), "absolute", "exact"]);
                 
                 // 4.3 사용 가능한 경우 내장 API 활용
-                if (typeof player.seekToPosition === "function") {
-                    player.seekToPosition(timePos);
+                if (typeof mpvPlayer.seekToPosition === "function") {
+                    mpvPlayer.seekToPosition(timePos);
                 }
                 
                 // 5. 일시정지 상태 확인
                 if (!isPlaying) {
-                    player.setProperty("pause", true);
+                    mpvPlayer.setProperty("pause", true);
                 }
                 
                 // 6. 내부 프레임 즉시 업데이트 (UI 응답성)
@@ -439,7 +431,7 @@ Item {
                 // 9. 시크 결과 확인 - 디버그 목적
                 Qt.callLater(function() {
                     try {
-                        var actualPos = player.getProperty("time-pos");
+                        var actualPos = mpvPlayer.getProperty("time-pos");
                         var actualFrame = Math.round(actualPos * fps);
                         console.log("시크 즉시 확인: 요청=", targetFrame, "실제=", actualFrame);
                     } catch (e) {
@@ -469,26 +461,25 @@ Item {
         property int targetFrame: 0
         
         onTriggered: {
-            var player = getMpvPlayer();
-            if (player) {
+            if (mpvPlayer) {
                 try {
                     // 1. 명령어로 한 번 더 정확한 위치 지정
-                    player.command(["seek", timePos.toString(), "absolute", "exact"]);
+                    mpvPlayer.command(["seek", timePos.toString(), "absolute", "exact"]);
                     
                     // 2. 일시정지 상태 유지 (일시정지 모드일 때)
                     if (!isPlaying) {
-                        player.setProperty("pause", true);
+                        mpvPlayer.setProperty("pause", true);
                     }
                     
                     // 3. 현재 프레임 상태 재확인 및 시그널 발생
-                    var actualPos = player.getProperty("time-pos");
+                    var actualPos = mpvPlayer.getProperty("time-pos");
                     if (actualPos !== undefined && actualPos !== null) {
                         var actualFrame = Math.round(actualPos * fps);
                         if (Math.abs(actualFrame - targetFrame) > 1) {
                             console.log("시크 검증: 프레임 불일치 - 현재:", actualFrame, "요청:", targetFrame);
                             
                             // 다시 시크 시도
-                            player.setProperty("time-pos", timePos);
+                            mpvPlayer.setProperty("time-pos", timePos);
                             
                             // UI 업데이트
                             frame = actualFrame;
@@ -511,11 +502,10 @@ Item {
         property int targetFrame: 0
         
         onTriggered: {
-            var player = getMpvPlayer();
-            if (player) {
+            if (mpvPlayer) {
                 try {
                     // 최종 상태 검증
-                    var actualPos = player.getProperty("time-pos");
+                    var actualPos = mpvPlayer.getProperty("time-pos");
                     if (actualPos !== undefined && actualPos !== null) {
                         var actualFrame = Math.round(actualPos * fps);
                         
@@ -525,24 +515,24 @@ Item {
                             
                             // 일시정지 확인 - 일시정지 상태에서만 정확한 프레임 맞추기
                             if (!isPlaying) {
-                                player.setProperty("pause", true);
+                                mpvPlayer.setProperty("pause", true);
                                 
                                 // 마지막 시도 - 3중 시크 명령 송출
                                 // 1. 속성 직접 설정
-                                player.setProperty("time-pos", timePos);
+                                mpvPlayer.setProperty("time-pos", timePos);
                                 
                                 // 2. 명령 인터페이스 사용
-                                player.command(["seek", timePos.toString(), "absolute", "exact"]);
+                                mpvPlayer.command(["seek", timePos.toString(), "absolute", "exact"]);
                                 
                                 // 3. 최우선 위치로 시크 (없으면 무시)
-                                if (typeof player.seekToPosition === "function") {
-                                    player.seekToPosition(timePos);
+                                if (typeof mpvPlayer.seekToPosition === "function") {
+                                    mpvPlayer.seekToPosition(timePos);
                                 }
                                 
                                 // 4. 1회 추가 검증
                                 Qt.callLater(function() {
                                     try {
-                                        var finalPos = player.getProperty("time-pos");
+                                        var finalPos = mpvPlayer.getProperty("time-pos");
                                         var finalFrame = Math.round(finalPos * fps);
                                         console.log("최종 검증 결과: 목표=", targetFrame, "최종=", finalFrame);
                                         
@@ -583,7 +573,6 @@ Item {
             return false;
         }
         
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
         if (mpvPlayer) {
             try {
                 console.log("Adding video filter:", filter);
@@ -607,7 +596,6 @@ Item {
             return false;
         }
         
-        var mpvPlayer = mpvLoader.item ? mpvLoader.item.mpvPlayer : null;
         if (mpvPlayer) {
             try {
                 console.log("Removing video filter:", filter);
