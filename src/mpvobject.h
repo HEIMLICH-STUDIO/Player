@@ -86,6 +86,7 @@ public slots:
     void seekToPosition(double pos);
     void updateFrameCount();
     void applyVideoFilters(const QStringList& filters);
+    void frameStep(int frames);
 
 signals:
     void pauseChanged(bool);

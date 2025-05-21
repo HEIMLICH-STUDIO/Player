@@ -230,11 +230,12 @@ ApplicationWindow {
             visible: true  // Always visible
             
             mpvObject: videoArea.mpvPlayer
+            timelineSync: videoArea.getTimelineSync()
             
             currentFrame: root.currentFrame
             totalFrames: root.totalFrames
             fps: root.fps
-            isPlaying: videoArea.mpvPlayer ? videoArea.mpvPlayer.isPlaying : false
+            isPlaying: videoArea.isPlaying
             
             // Debug border
             Rectangle {
@@ -275,13 +276,19 @@ ApplicationWindow {
         }
         
         onFrameBackwardRequested: function(frames) {
-            if (videoArea.mpvPlayer) {
+            var sync = videoArea.getTimelineSync()
+            if (sync) {
+                sync.stepFrames(-frames)
+            } else if (videoArea.mpvPlayer) {
                 videoArea.mpvPlayer.frameStep(-frames)
             }
         }
         
         onFrameForwardRequested: function(frames) {
-            if (videoArea.mpvPlayer) {
+            var sync = videoArea.getTimelineSync()
+            if (sync) {
+                sync.stepFrames(frames)
+            } else if (videoArea.mpvPlayer) {
                 videoArea.mpvPlayer.frameStep(frames)
             }
         }

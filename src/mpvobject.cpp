@@ -1032,3 +1032,16 @@ void MpvObject::applyVideoFilters(const QStringList& filters)
         command(QVariantList() << "vf" << "add" << f);
     }
 }
+
+// Frame stepping helper
+void MpvObject::frameStep(int frames)
+{
+    if (!mpv || frames == 0)
+        return;
+
+    const char *cmd = frames > 0 ? "frame-step" : "frame-back-step";
+    int count = std::abs(frames);
+    for (int i = 0; i < count; ++i) {
+        mpv_command_string(mpv, cmd);
+    }
+}
