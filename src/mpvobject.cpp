@@ -209,8 +209,6 @@ MpvObject::MpvObject(QQuickItem * parent)
     
     // qDebug() << "MpvObject constructor completed successfully";
     
-    setMirrorVertically(true);
-    
     // 상태 변경 타이머
     m_stateChangeTimer = new QTimer(this);
     m_stateChangeTimer->setSingleShot(true);

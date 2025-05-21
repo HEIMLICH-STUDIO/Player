@@ -9,9 +9,13 @@
         <file>qml/core/VideoPlayer.qml</file>
         
         <!-- UI Components -->
-        <file>qml/ui/VideoArea.qml</file>
         <file>qml/ui/IconButton.qml</file>
         <file>qml/ui/CustomFileDialog.qml</file>
+        <file>qml/ui/VideoArea.qml</file>
+        
+        <!-- Panels -->
+        <file>qml/panels/VideoSettingsTab.qml</file>
+        <file>qml/panels/GeneralSettingsTab.qml</file>
         
         <!-- Widgets -->
         <file>qml/widgets/FrameTimelineBar.qml</file>

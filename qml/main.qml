@@ -6,8 +6,8 @@ import Utils 1.0 as Utils
 
 // Import local components
 import mpv 1.0
-import "panels"
-import "controls"
+import "panels"  // 명시적으로 panels 디렉토리에서 VideoArea 가져오기
+import "widgets" // widgets에서 ControlBar 사용하도록 변경
 import "popups"
 import "utils"
 
@@ -20,6 +20,13 @@ ApplicationWindow {
     minimumHeight: 480
     title: qsTr("HYPER-PLAYER")
     color: Utils.ThemeManager.backgroundColor
+    
+    // Debugging - print loaded component information
+    Component.onCompleted: {
+        console.log("Main window loaded");
+        console.log("Using VideoArea from:", (typeof VideoArea !== "undefined") ? "Available" : "Not available");
+        console.log("MPV support:", mpvSupported);
+    }
     
     // Global properties
     property bool mpvSupported: hasMpvSupport
@@ -88,13 +95,44 @@ ApplicationWindow {
         return null;
     }
     
+    // Frame information update function
+    function updateFrameInfo() {
+        if (videoArea && videoArea.mpvPlayer) {
+            try {
+                // Get current time position
+                var pos = videoArea.mpvPlayer.getProperty("time-pos");
+                if (pos !== undefined && pos !== null) {
+                    // Update current frame
+                    currentFrame = Math.round(pos * fps);
+                
+                    // Update timecode
+                    var hours = Math.floor(pos / 3600);
+                    var minutes = Math.floor((pos % 3600) / 60);
+                    var seconds = Math.floor(pos % 60);
+                    var frames = Math.round((pos % 1) * fps);
+                    
+                    currentTimecode = hours.toString().padStart(2, '0') + ":" +
+                                    minutes.toString().padStart(2, '0') + ":" +
+                                    seconds.toString().padStart(2, '0') + ":" +
+                                    frames.toString().padStart(2, '0');
+                }
+                
+                // Get duration
+                var duration = videoArea.mpvPlayer.getProperty("duration");
+                if (duration !== undefined && duration !== null) {
+                    totalFrames = Math.ceil(duration * fps);
+                }
+                
+            } catch (e) {
+                console.error("Error updating frame info:", e);
+            }
+        }
+    }
+    
     // Main content layout
     Rectangle {
         id: mainContentArea
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: statusBar.top
+        anchors.fill: parent
         color: Utils.ThemeManager.backgroundColor
         
         // Debug border
@@ -174,142 +212,6 @@ ApplicationWindow {
         }
     }
     
-    // Status bar
-    StatusBar {
-        id: statusBar
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: bottomControlBar.top
-        height: 24  // Fixed height
-        visible: true  // Always visible
-        
-        currentMediaFile: root.currentMediaFile
-        currentFrame: root.currentFrame
-        totalFrames: root.totalFrames
-        
-        // Debug border
-        Rectangle {
-            visible: showDebugBorders
-            anchors.fill: parent
-            color: "transparent"
-            border.width: 2
-            border.color: "magenta"
-            z: 100
-        }
-    }
-    
-    // Bottom control bar
-    ControlBar {
-        id: bottomControlBar
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: 130  // Increased height to include timeline (90+40)
-        
-        // Property connections
-        mpvObject: videoArea.mpvPlayer
-        currentFrame: root.currentFrame
-        totalFrames: root.totalFrames
-        fps: root.fps
-        mpvSupported: root.mpvSupported
-        
-        // Debug border
-        Rectangle {
-            visible: showDebugBorders
-            anchors.fill: parent
-            color: "transparent"
-            border.width: 2
-            border.color: "yellow"
-            z: 100
-        }
-        
-        // Timeline bar in control bar's timeline area
-        FrameTimelineBar {
-            id: timelineBar
-            anchors.fill: parent.children[0]  // Fit to timeline area
-            visible: true  // Always visible
-            
-            mpvObject: videoArea.mpvPlayer
-            
-            currentFrame: root.currentFrame
-            totalFrames: root.totalFrames
-            fps: root.fps
-            isPlaying: videoArea.mpvPlayer ? videoArea.mpvPlayer.isPlaying : false
-            
-            // 강화된 시크 처리
-            onSeekRequested: function(frame) {
-                if (videoArea.mpvPlayer) {
-                    // 프레임 바로 업데이트 (UI 반응성)
-                    root.currentFrame = frame;
-                    
-                    // MPV 직접 호출 (최대 안정성)
-                    if (typeof videoArea.mpvPlayer.seekToPosition === "function") {
-                        var pos = frame / fps;
-                        videoArea.mpvPlayer.seekToPosition(pos);
-                        
-                        // 시크 후 100ms 지연 시크 (정확도 향상)
-                        Qt.setTimeout(function() {
-                            if (videoArea.mpvPlayer) {
-                                videoArea.mpvPlayer.seekToPosition(pos);
-                            }
-                        }, 100);
-                    } else {
-                        videoArea.mpvPlayer.frameStep(frame - root.currentFrame);
-                    }
-                }
-            }
-            
-            // Debug border
-            Rectangle {
-                visible: showDebugBorders
-                anchors.fill: parent
-                color: "transparent"
-                border.width: 2
-                border.color: "cyan"
-                z: 100
-            }
-        }
-        
-        // Connect control bar signals
-        onOpenFileRequested: {
-            videoArea.openFile()
-        }
-        
-        onToggleSettingsPanelRequested: {
-            settingsPanelVisible = !settingsPanelVisible
-        }
-        
-        onTakeScreenshotRequested: {
-            if (videoArea.mpvPlayer) {
-                videoArea.mpvPlayer.screenshot()
-            }
-        }
-        
-        onToggleFullscreenRequested: {
-            if (root.visibility === Window.FullScreen) {
-                root.showNormal()
-            } else {
-                root.showFullScreen()
-            }
-        }
-        
-        onToggleScopesRequested: {
-            videoArea.toggleScopes()
-        }
-        
-        onFrameBackwardRequested: function(frames) {
-            if (videoArea.mpvPlayer) {
-                videoArea.mpvPlayer.frameStep(-frames)
-            }
-        }
-        
-        onFrameForwardRequested: function(frames) {
-            if (videoArea.mpvPlayer) {
-                videoArea.mpvPlayer.frameStep(frames)
-            }
-        }
-    }
-    
     // Magnifier overlay
     MagnifierOverlay {
         id: magnifier
@@ -324,36 +226,60 @@ ApplicationWindow {
         sequence: "Space"
         onActivated: {
             if (videoArea.mpvPlayer) {
-                videoArea.mpvPlayer.playPause()
+                videoArea.mpvPlayer.pause = !videoArea.mpvPlayer.pause;
             }
         }
     }
     
     Shortcut {
         sequence: "Left"
-        onActivated: bottomControlBar.frameBackwardRequested(1)
+        onActivated: {
+            if (videoArea.mpvPlayer) {
+                var newFrame = Math.max(0, currentFrame - 1);
+                var pos = newFrame / fps;
+                videoArea.mpvPlayer.seekToPosition(pos);
+            }
+        }
     }
     
     Shortcut {
         sequence: "Right"
-        onActivated: bottomControlBar.frameForwardRequested(1)
+        onActivated: {
+            if (videoArea.mpvPlayer) {
+                var newFrame = Math.min(totalFrames - 1, currentFrame + 1);
+                var pos = newFrame / fps;
+                videoArea.mpvPlayer.seekToPosition(pos);
+            }
+        }
     }
     
     Shortcut {
         sequence: "Ctrl+Left"
-        onActivated: bottomControlBar.frameBackwardRequested(10)
+        onActivated: {
+            if (videoArea.mpvPlayer) {
+                var newFrame = Math.max(0, currentFrame - 10);
+                var pos = newFrame / fps;
+                videoArea.mpvPlayer.seekToPosition(pos);
+            }
+        }
     }
     
     Shortcut {
         sequence: "Ctrl+Right"
-        onActivated: bottomControlBar.frameForwardRequested(10)
+        onActivated: {
+            if (videoArea.mpvPlayer) {
+                var newFrame = Math.min(totalFrames - 1, currentFrame + 10);
+                var pos = newFrame / fps;
+                videoArea.mpvPlayer.seekToPosition(pos);
+            }
+        }
     }
     
     Shortcut {
         sequence: "Home"
         onActivated: {
             if (videoArea.mpvPlayer) {
-                videoArea.mpvPlayer.setProperty("time-pos", 0)
+                videoArea.mpvPlayer.setProperty("time-pos", 0);
             }
         }
     }
@@ -362,19 +288,20 @@ ApplicationWindow {
         sequence: "End"
         onActivated: {
             if (videoArea.mpvPlayer && videoArea.mpvPlayer.duration) {
-                videoArea.mpvPlayer.setProperty("time-pos", videoArea.mpvPlayer.duration - (1/fps))
+                videoArea.mpvPlayer.setProperty("time-pos", videoArea.mpvPlayer.duration - (1/fps));
             }
         }
     }
     
     Shortcut {
         sequence: "F"
-        onActivated: bottomControlBar.toggleFullscreenRequested()
-    }
-    
-    Shortcut {
-        sequence: "S"
-        onActivated: bottomControlBar.takeScreenshotRequested()
+        onActivated: {
+            if (root.visibility === Window.FullScreen) {
+                root.showNormal();
+            } else {
+                root.showFullScreen();
+            }
+        }
     }
     
     Shortcut {
@@ -383,12 +310,8 @@ ApplicationWindow {
     }
     
     Shortcut {
-        sequence: "Ctrl+S"
-        onActivated: bottomControlBar.toggleScopesRequested()
-    }
-    
-    Shortcut {
         sequence: "T"
         onActivated: themeManager.toggleTheme()
     }
 } 
+

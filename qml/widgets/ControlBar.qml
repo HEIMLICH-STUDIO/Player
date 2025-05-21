@@ -50,13 +50,37 @@ Rectangle {
             fps: root.fps
             isPlaying: root.isPlaying
             
-            // 중요: MPV 객체 전달
-            mpvObject: root.mpvObject
+            // 중요: MPV 객체 전달 - 반드시 null이 아닌지 검증
+            mpvObject: {
+                // MPV 객체가 유효한지 로그로 확인
+                if (root.mpvObject) {
+                    console.log("ControlBar: MPV 객체를 FrameTimelineBar에 전달");
+                    return root.mpvObject;
+                } else {
+                    console.error("ControlBar: MPV 객체가 null입니다");
+                    return null;
+                }
+            }
+            
+            // currentFrame 변경 감지 - 타임라인 내부 변경이 외부로 전달되도록
+            onCurrentFrameChanged: {
+                // 내부-외부 값이 다를 때만 업데이트 (무한 루프 방지)
+                if (root.currentFrame !== currentFrame) {
+                    console.log("ControlBar: 타임라인에서 currentFrame 변경 감지 -", currentFrame);
+                    root.currentFrame = currentFrame;
+                }
+            }
             
             // seekRequested 시그널을 상위로 올림
             onSeekRequested: function(frame) {
-                console.log("ControlBar: seek requested to frame " + frame);
-                root.currentFrame = frame; // 중요: 먼저 내부 상태 업데이트
+                console.log("ControlBar: 프레임 시크 요청 -", frame);
+                
+                // 내부 currentFrame도 함께 업데이트 (동기화 보장)
+                if (root.currentFrame !== frame) {
+                    root.currentFrame = frame;
+                }
+                
+                // 상위 컴포넌트로 시그널 전달
                 root.seekToFrameRequested(frame);
             }
         }

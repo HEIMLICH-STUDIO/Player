@@ -62,41 +62,6 @@ Item {
         }
     }
     
-    // Timer for delayed second seek
-    Timer {
-        id: delayedSeekTimer
-        interval: 150
-        repeat: false
-        property int targetFrame: 0
-        
-        onTriggered: {
-            if (mpvObject) {
-                var player = getMpvPlayer();
-                if (player) {
-                    // 5.1 Command for more precise position
-                    var timePos = targetFrame / fps;
-                    player.command(["seek", timePos.toString(), "absolute", "exact"]);
-                    
-                    // 5.2 Maintain paused state (when in pause mode)
-                    if (!isPlaying) {
-                        player.setProperty("pause", true);
-                    }
-                    
-                    // 5.3 Recheck current frame status and emit signal
-                    var actualPos = player.getProperty("time-pos");
-                    if (actualPos !== undefined && actualPos !== null) {
-                        var actualFrame = Math.round(actualPos * fps);
-                        if (Math.abs(actualFrame - targetFrame) > 1) {
-                            console.log("Frame mismatch detected:", actualFrame, "vs", targetFrame);
-                            frame = actualFrame;
-                            onFrameChangedEvent(actualFrame);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
     // Placeholder when MPV support is unavailable
     Rectangle {
         id: placeholderRect
@@ -415,41 +380,188 @@ Item {
         }
     }
     
-    // 특정 프레임으로 이동
+    // 특정 프레임으로 이동 - 강화된 구현
     function seekToFrame(targetFrame) {
         var player = getMpvPlayer();
         if (player) {
             try {
-                console.log("직접 시크 요청 - 프레임:", targetFrame);
+                console.log("VideoArea: 프레임 시크 요청 -", targetFrame);
                 
-                // 1. 일시 정지 상태 확인 (프레임 정확도 위해)
+                // 1. 영상 위치 검증
+                if (typeof player.duration !== 'undefined' && player.duration <= 0) {
+                    console.error("유효한 영상이 없음 - 시크 불가");
+                    return;
+                }
+                
+                // 2. 프레임 범위 확인
+                if (targetFrame < 0 || targetFrame >= frames) {
+                    console.error("유효하지 않은 프레임 범위:", targetFrame, "범위:", 0, "-", frames-1);
+                    targetFrame = Math.max(0, Math.min(targetFrame, frames - 1));
+                }
+                
+                // 3. 타임스탬프 계산
+                var timePos = targetFrame / fps;
+                
+                // 시크 명령 카운트 - 디버깅용
+                console.log("시크 시작 - 프레임:", targetFrame, "시간:", timePos);
+                
+                // 4. MPV 강력한 시크 구현 - 모든 메서드 시도
+                // 4.1. 직접 속성 설정 (즉각 반응)
+                player.setProperty("time-pos", timePos);
+                
+                // 4.2. 명령 인터페이스 사용 (정확도)
+                player.command(["seek", timePos.toString(), "absolute", "exact"]);
+                
+                // 4.3 사용 가능한 경우 내장 API 활용
+                if (typeof player.seekToPosition === "function") {
+                    player.seekToPosition(timePos);
+                }
+                
+                // 5. 일시정지 상태 확인
                 if (!isPlaying) {
                     player.setProperty("pause", true);
                 }
                 
-                // 2. 프레임을 시간으로 변환 (초 단위)
-                var timePos = targetFrame / fps;
-                
-                // 3. 여러 방식으로 시크 명령 전송 (강력한 동기화 위해)
-                // 3.1 MPV 속성 바로 설정 (가장 빠름)
-                player.setProperty("time-pos", timePos);
-                
-                // 3.2 명령어로 정확한 시크 수행 (더 정확함)
-                player.command(["seek", timePos.toString(), "absolute", "exact"]);
-                
-                // 4. UI 업데이트
+                // 6. 내부 프레임 즉시 업데이트 (UI 응답성)
                 frame = targetFrame;
                 onFrameChangedEvent(targetFrame);
                 
-                // 5. 안정적인 동기화를 위해 약간 지연된 두 번째 시크 수행
-                delayedSeekTimer.targetFrame = targetFrame;
-                delayedSeekTimer.restart();
+                // 7. 시크 검증 및 강화 - 시크가 완전히 적용되도록 함
+                secondSeekTimer.timePos = timePos;
+                secondSeekTimer.targetFrame = targetFrame;
+                secondSeekTimer.start();
+                
+                // 8. 최종 검증
+                finalVerifyTimer.timePos = timePos;
+                finalVerifyTimer.targetFrame = targetFrame;
+                finalVerifyTimer.start();
+                
+                // 9. 시크 결과 확인 - 디버그 목적
+                Qt.callLater(function() {
+                    try {
+                        var actualPos = player.getProperty("time-pos");
+                        var actualFrame = Math.round(actualPos * fps);
+                        console.log("시크 즉시 확인: 요청=", targetFrame, "실제=", actualFrame);
+                    } catch (e) {
+                        console.error("시크 결과 확인 오류:", e);
+                    }
+                });
+                
+                return true;
             } catch (e) {
-                console.error("Error seeking to frame:", e);
-                showMessage("Error seeking to frame: " + e);
+                console.error("프레임 시크 오류:", e);
+                showMessage("프레임 시크 오류: " + e);
+                return false;
             }
         } else {
+            console.error("시크 불가: 플레이어 초기화 안됨");
             showMessage("Player not initialized");
+            return false;
+        }
+    }
+    
+    // 두 번째 시크 타이머 (setTimeout 대체)
+    Timer {
+        id: secondSeekTimer
+        interval: 100
+        repeat: false
+        property real timePos: 0
+        property int targetFrame: 0
+        
+        onTriggered: {
+            var player = getMpvPlayer();
+            if (player) {
+                try {
+                    // 1. 명령어로 한 번 더 정확한 위치 지정
+                    player.command(["seek", timePos.toString(), "absolute", "exact"]);
+                    
+                    // 2. 일시정지 상태 유지 (일시정지 모드일 때)
+                    if (!isPlaying) {
+                        player.setProperty("pause", true);
+                    }
+                    
+                    // 3. 현재 프레임 상태 재확인 및 시그널 발생
+                    var actualPos = player.getProperty("time-pos");
+                    if (actualPos !== undefined && actualPos !== null) {
+                        var actualFrame = Math.round(actualPos * fps);
+                        if (Math.abs(actualFrame - targetFrame) > 1) {
+                            console.log("시크 검증: 프레임 불일치 - 현재:", actualFrame, "요청:", targetFrame);
+                            
+                            // 다시 시크 시도
+                            player.setProperty("time-pos", timePos);
+                            
+                            // UI 업데이트
+                            frame = actualFrame;
+                            onFrameChangedEvent(actualFrame);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Second seek timer error:", e);
+                }
+            }
+        }
+    }
+    
+    // 최종 검증 타이머 (완전한 동기화 보장)
+    Timer {
+        id: finalVerifyTimer
+        interval: 250
+        repeat: false
+        property real timePos: 0
+        property int targetFrame: 0
+        
+        onTriggered: {
+            var player = getMpvPlayer();
+            if (player) {
+                try {
+                    // 최종 상태 검증
+                    var actualPos = player.getProperty("time-pos");
+                    if (actualPos !== undefined && actualPos !== null) {
+                        var actualFrame = Math.round(actualPos * fps);
+                        
+                        // 여전히 불일치가 있는지 확인
+                        if (Math.abs(actualFrame - targetFrame) > 1) {
+                            console.log("최종 검증: 프레임 불일치 감지 - 현재:", actualFrame, "목표:", targetFrame);
+                            
+                            // 일시정지 확인 - 일시정지 상태에서만 정확한 프레임 맞추기
+                            if (!isPlaying) {
+                                player.setProperty("pause", true);
+                                
+                                // 마지막 시도 - 3중 시크 명령 송출
+                                // 1. 속성 직접 설정
+                                player.setProperty("time-pos", timePos);
+                                
+                                // 2. 명령 인터페이스 사용
+                                player.command(["seek", timePos.toString(), "absolute", "exact"]);
+                                
+                                // 3. 최우선 위치로 시크 (없으면 무시)
+                                if (typeof player.seekToPosition === "function") {
+                                    player.seekToPosition(timePos);
+                                }
+                                
+                                // 4. 1회 추가 검증
+                                Qt.callLater(function() {
+                                    try {
+                                        var finalPos = player.getProperty("time-pos");
+                                        var finalFrame = Math.round(finalPos * fps);
+                                        console.log("최종 검증 결과: 목표=", targetFrame, "최종=", finalFrame);
+                                        
+                                        // UI 업데이트
+                                        frame = finalFrame;
+                                        onFrameChangedEvent(finalFrame);
+                                    } catch (e) {
+                                        console.error("최종 확인 오류:", e);
+                                    }
+                                });
+                            }
+                        } else {
+                            console.log("프레임 시크 최종 확인 완료:", targetFrame);
+                        }
+                    }
+                } catch (e) {
+                    console.error("최종 검증 타이머 오류:", e);
+                }
+            }
         }
     }
     

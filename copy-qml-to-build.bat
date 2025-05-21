@@ -28,17 +28,10 @@ if not exist "build\qml\utils" mkdir "build\qml\utils"
 xcopy /Y /S "qml\utils\*" "build\qml\utils\"
 echo [INFO] Utils files copied.
 
-:: Always copy controls directory (important for playback functionality)
-echo [INFO] Copying controls directory...
-if not exist "build\qml\controls" mkdir "build\qml\controls"
-xcopy /Y /S "qml\controls\*" "build\qml\controls\"
-
-:: Check if ControlBar.qml was copied
-if not exist "build\qml\controls\ControlBar.qml" (
-    echo [WARNING] ControlBar.qml was not copied! Trying direct copy...
-    copy /Y "qml\controls\ControlBar.qml" "build\qml\controls\"
-)
-echo [INFO] Controls files copied.
+:: Control directory has been removed - widgets are now used instead
+:: echo [INFO] Copying controls directory...
+:: if not exist "build\qml\controls" mkdir "build\qml\controls"
+:: xcopy /Y /S "qml\controls\*" "build\qml\controls\"
 
 :: Create and copy panels subdirectory
 if not exist "build\qml\panels" mkdir "build\qml\panels"
@@ -57,17 +50,4 @@ if not exist "build\assets\icons" mkdir "build\assets\icons"
 xcopy /Y /S "assets\icons\*" "build\assets\icons\"
 
 echo [INFO] All QML files and assets copied successfully!
-echo [INFO] Double-checking critical files...
-
-:: Double check critical files
-if exist "build\qml\controls\ControlBar.qml" (
-    echo [SUCCESS] ControlBar.qml is present.
-) else (
-    echo [ERROR] ControlBar.qml is still missing!
-)
-
-if exist "build\qml\ui\VideoArea.qml" (
-    echo [SUCCESS] VideoArea.qml is present.
-) else (
-    echo [ERROR] VideoArea.qml is missing!
-) 
+echo [INFO] Cleaning up temporary build directory 

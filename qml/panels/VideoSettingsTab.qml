@@ -445,6 +445,24 @@ ScrollView {
                     model: ["No Rotation", "90° Clockwise", "180° Flipped", "90° Counter-clockwise"]
                     currentIndex: 0
                     
+                    // Initialize rotation value when the player component is loaded
+                    Component.onCompleted: {
+                        if (mpvPlayer) {
+                            // Get current rotation from MPV if available
+                            var currentRotation = mpvPlayer.getProperty("video-rotate");
+                            if (currentRotation !== undefined) {
+                                // Set combo box to match current rotation
+                                switch(parseInt(currentRotation)) {
+                                    case 0: currentIndex = 0; break;
+                                    case 90: currentIndex = 1; break;
+                                    case 180: currentIndex = 2; break;
+                                    case 270: currentIndex = 3; break;
+                                    default: currentIndex = 0;
+                                }
+                            }
+                        }
+                    }
+                    
                     onCurrentIndexChanged: {
                         if (mpvPlayer) {
                             var rotation = 0;
@@ -464,6 +482,16 @@ ScrollView {
                     text: qsTr("Flip Horizontally")
                     checked: false
                     
+                    // Initialize from MPV property
+                    Component.onCompleted: {
+                        if (mpvPlayer) {
+                            var isFlipped = mpvPlayer.getProperty("video-flip-x");
+                            if (isFlipped !== undefined) {
+                                checked = (isFlipped === "yes" || isFlipped === true);
+                            }
+                        }
+                    }
+                    
                     onCheckedChanged: {
                         if (mpvPlayer) {
                             mpvPlayer.setProperty("video-flip-x", checked);
@@ -475,6 +503,16 @@ ScrollView {
                     id: flipVerticalCheck
                     text: qsTr("Flip Vertically")
                     checked: false
+                    
+                    // Initialize from MPV property
+                    Component.onCompleted: {
+                        if (mpvPlayer) {
+                            var isFlipped = mpvPlayer.getProperty("video-flip-y");
+                            if (isFlipped !== undefined) {
+                                checked = (isFlipped === "yes" || isFlipped === true);
+                            }
+                        }
+                    }
                     
                     onCheckedChanged: {
                         if (mpvPlayer) {

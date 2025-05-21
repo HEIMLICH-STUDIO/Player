@@ -13,10 +13,11 @@ Item {
     // Essential properties
     property var mpvObject: null // MPV 플레이어 객체
     
-    // Critical change: Use an internal property for frame handling,
-    // keeping the external binding intact
+    // 양방향 바인딩 개선을 위한 핵심 변경사항
     property int currentFrame: 0
-    property int _internalFrame: currentFrame
+    
+    // 정밀한 제어를 위한 내부 프레임 프로퍼티
+    property int _internalFrame: 0
     
     property int totalFrames: 0
     property real fps: 24.0
@@ -49,7 +50,7 @@ Item {
     property int lastSentFrame: -1  // Track the last frame we sent for seeking
     property bool throttleSeeking: true  // Throttle seeking while dragging for better performance
     
-    // Direct playhead position tracking
+    // 플레이헤드 직접 위치 결정 (외부에서 설정된 값이 있으면 우선 사용)
     property real playheadPosition: getExactFramePosition(_internalFrame)
     property bool seekInProgress: false  // 시크 작업 진행 중 플래그
     
@@ -63,20 +64,36 @@ Item {
         }
     }
     
-    // Update internal frame whenever external frame changes
+    // 양방향 바인딩을 위한 핵심 변경사항
+    // 외부 프레임이 변경되면 내부 프레임도 업데이트
     onCurrentFrameChanged: {
-        _internalFrame = currentFrame;
+        if (!isDragging && currentFrame !== _internalFrame) {
+            console.log("타임라인: 외부 프레임 변경 감지:", currentFrame);
+            _internalFrame = currentFrame;
+            updatePlayhead();
+        }
     }
     
-    // Additional change to update playhead when _internalFrame changes
+    // 내부 프레임이 변경되면 외부 프레임에 알리고 플레이헤드 위치 업데이트
     on_InternalFrameChanged: {
+        // 내부 프레임이 변경되면 플레이헤드 업데이트
         updatePlayhead();
+        
+        // 드래그 중이 아니고 현재 프레임과 차이가 있을 때만 외부에 알림
+        if (!isDragging && _internalFrame !== currentFrame) {
+            // 여기서 바로 currentFrame을 업데이트하지 않고 신호로 보냄
+            seekRequested(_internalFrame);
+        }
     }
     
     // Centralized function to update the playhead
     function updatePlayhead() {
         if (!isDragging) {
-            playhead.x = getExactFramePosition(_internalFrame);
+            // 플레이헤드 위치를 직접 계산하여 설정
+            var exactPosition = getExactFramePosition(_internalFrame);
+            if (playhead.x !== exactPosition) {
+                playhead.x = exactPosition;
+            }
         }
     }
     
@@ -90,73 +107,61 @@ Item {
         return Math.round(safeFrame * scaleFactor - 1);
     }
     
+    // 내부 상태 초기화 (강제 동기화 시 사용)
+    function resetInternalState() {
+        if (mpvObject) {
+            try {
+                // MPV에서 현재 위치 가져오기
+                var timePos = mpvObject.getProperty("time-pos");
+                if (timePos !== undefined && timePos !== null) {
+                    // 현재 프레임 계산
+                    var mpvFrame = Math.round(timePos * fps);
+                    
+                    // 내부 상태 업데이트
+                    _internalFrame = mpvFrame;
+                    
+                    // 플레이헤드 강제 업데이트
+                    updatePlayhead();
+                    
+                    // 로그
+                    console.log("타임라인: 내부 상태 초기화 - 프레임:", mpvFrame);
+                }
+            } catch (e) {
+                console.error("내부 상태 초기화 오류:", e);
+            }
+        }
+    }
+    
     // 강제로 플레이헤드 위치 업데이트 타이머
     Timer {
         id: forceUpdateTimer
-        interval: 33  // ~30fps (더 안정적인 값으로 변경)
+        interval: 100  // 더 빠른 업데이트 (100ms, 10fps)
         repeat: true
         running: isPlaying || seekInProgress // 재생 중이거나 시크 중일 때 플레이헤드 위치 강제 업데이트
         onTriggered: {
             // 현재 프레임 위치에 맞게 플레이헤드 위치 강제 업데이트
             if (!isDragging) {
+                // MPV와 현재 프레임 동기화 확인
+                if (mpvObject) {
+                    try {
+                        var timePos = mpvObject.getProperty("time-pos");
+                        if (timePos !== undefined && timePos !== null) {
+                            var mpvFrame = Math.round(timePos * fps);
+                            
+                            // MPV와 내부 프레임이 크게 다르면 동기화
+                            if (Math.abs(mpvFrame - _internalFrame) > 1) {
+                                console.log("강제 업데이트: MPV 프레임=", mpvFrame, "내부 프레임=", _internalFrame);
+                                _internalFrame = mpvFrame;
+                            }
+                        }
+                    } catch (e) {
+                        // 오류 무시 (타이머에서 발생)
+                    }
+                }
+                
+                // 플레이헤드 위치 업데이트
                 updatePlayhead();
             }
-        }
-    }
-    
-    // 프레임 정밀 시크 함수 - 영상 끝 부분 문제 해결
-    function preciseFrameSeek(frame, exact) {
-        // MPV가 없거나 영상 길이가 없을 경우 무시
-        if (!mpvObject || typeof mpvObject.duration === 'undefined' || mpvObject.duration <= 0) return;
-        
-        // 프레임 범위 확인 - 안전하게 처리
-        var safeFrame = Math.max(0, Math.min(frame, totalFrames - 30));
-        
-        try {
-            // 프레임을 시간 위치로 변환
-            var pos = safeFrame / fps;
-        
-            // 끝부분에서의 시크 처리
-            var isTooCloseToEnd = (totalFrames - safeFrame) < 30;
-        
-            // 현재 프레임 즉시 업데이트 (UI 반응성)
-            _internalFrame = safeFrame;
-            
-            // 상태 변수 설정 - 중복 시크 방지
-            seekInProgress = true;
-            
-            // 시크 시 endReached 상태 초기화
-            if (mpvObject.endReached) {
-                mpvObject.resetEndReached();
-            }
-        
-            // MPV 명령 실행 - 끝부분에서는 안전 모드 사용
-            if (isTooCloseToEnd) {
-                // 끝 부분에 가까울 때는 더 안전한 위치로 시크
-                var safePos = Math.max(0, mpvObject.duration - 0.5);
-                mpvObject.command(["seek", safePos, "absolute", "exact"]);
-                
-                // 항상 일시 정지 상태 유지
-                mpvObject.command(["set_property", "pause", "yes"]);
-                
-                // 빠른 검증 수행
-                verifySeekTimer.interval = 50;
-                verifySeekTimer.restart();
-            } else if (exact) {
-                mpvObject.command(["seek", pos, "absolute", "exact"]);
-                verifySeekTimer.interval = 80;
-                verifySeekTimer.restart();
-            } else {
-                mpvObject.command(["seek", pos, "absolute", "exact"]);
-                verifySeekTimer.interval = 60;
-                verifySeekTimer.restart();
-            }
-            
-            // 플레이헤드 위치 즉시 업데이트
-            updatePlayhead();
-        } catch (e) {
-            console.error("시크 중 오류:", e);
-            seekInProgress = false;
         }
     }
     
@@ -199,6 +204,47 @@ Item {
             } catch (e) {
                 console.error("시크 검증 오류:", e);
                 seekInProgress = false;
+            }
+        }
+    }
+    
+    // 시크 디바운스 타이머 - MPV 명령 최적화
+    Timer {
+        id: seekDebounceTimer
+        interval: 40  // 더 빠른 응답성
+        repeat: false
+        onTriggered: {
+            if (isDragging && mpvObject) {
+                try {
+                    console.log("드래그 중 시크 (디바운스), 프레임:", dragFrame);
+                    
+                    // 정확한 시간 위치 계산
+                    var pos = dragFrame / fps;
+                    
+                    // 강력한 시크 구현
+                    // 1. 직접 속성 설정 (최고 속도)
+                    mpvObject.setProperty("time-pos", pos);
+                    
+                    // 2. 명령어 인터페이스 사용 (정확도)
+                    mpvObject.command(["seek", pos.toString(), "absolute", "exact"]);
+                    
+                    // 3. 일시 정지 상태 확인
+                    if (!isPlaying) {
+                        mpvObject.setProperty("pause", true);
+                    }
+                    
+                    // 4. UI 업데이트
+                    _internalFrame = dragFrame;
+                    updatePlayhead();
+                    
+                    // 5. 시그널 발생 (상위 알림)
+                    seekRequested(dragFrame);
+                    
+                    // 6. 상태 로그
+                    console.log("MPV 시크 적용 완료, 프레임:", dragFrame, "시간:", pos);
+                } catch (e) {
+                    console.error("디바운스 시크 오류:", e);
+                }
             }
         }
     }
@@ -415,10 +461,36 @@ Item {
                 
                 // 4. 내부 프레임 즉시 업데이트 (지연 없이) - 바인딩 유지
                 _internalFrame = dragFrame;
-            
+                
                 // 5. endReached 상태 초기화
                 if (mpvObject && mpvObject.endReached) {
                     mpvObject.resetEndReached();
+                }
+                
+                // 6. MPV 직접 시크 명령 - 최우선 (강제 적용)
+                if (mpvObject) {
+                    try {
+                        var pos = dragFrame / fps;
+                        
+                        // 첫번째 시크: 속성 직접 설정 (즉각 적용)
+                        mpvObject.setProperty("time-pos", pos);
+                        
+                        // 두번째 시크: 명령 인터페이스 (정확도 향상)
+                        mpvObject.command(["seek", pos.toString(), "absolute", "exact"]);
+                        
+                        // 일시 정지 상태 확인
+                        if (!isPlaying) {
+                            mpvObject.setProperty("pause", true);
+                        }
+                        
+                        // 로그 출력
+                        console.log("드래그 시작 시크 명령 전송 - 프레임:", dragFrame, "시간:", pos);
+                        
+                        // 7. 시그널 발생 (상위 객체에 알림)
+                        seekRequested(dragFrame);
+                    } catch (e) {
+                        console.error("MPV 시크 명령 오류:", e);
+                    }
                 }
                 
                 // 상태 플래그 설정
@@ -448,11 +520,27 @@ Item {
                         // 드래그 핸들 UI 업데이트
                         dragHandle.x = getExactFramePosition(dragFrame);
                         
-                        // 내부 프레임 업데이트 - 바인딩 유지
+                        // 내부 프레임 즉시 업데이트
                         _internalFrame = dragFrame;
                         
-                        // 디바운스 설정
+                        // MPV에 즉각적인 업데이트 (즉시 피드백)
+                        if (mpvObject) {
+                            try {
+                                var pos = dragFrame / fps;
+                                
+                                // UI 즉각 반응을 위한 속성 직접 설정
+                                mpvObject.setProperty("time-pos", pos);
+                                
+                                // 로그 출력
+                                console.log("드래그 중 즉시 업데이트 - 프레임:", dragFrame);
+                            } catch (e) {
+                                // 드래그 중 오류는 무시 (성능 위해)
+                            }
+                        }
+                        
+                        // 디바운스 설정 - 더 빠른 응답을 위해 인터벌 축소
                         if (!seekDebounceTimer.running) {
+                            seekDebounceTimer.interval = 40; // 더 빠른 응답
                             seekDebounceTimer.restart();
                         }
                     }
@@ -472,36 +560,59 @@ Item {
                 
                     // 2. 안전한 범위 계산
                     if (mpvObject && mpvObject.duration > 0) {
-                        // 3. MPV로 직접 시크 요청
-                        // 중요: 강제 시크 명령 - 직접 MPV에 명령 전송
-                        mpvObject.command(["seek", pos, "absolute", "exact"]);
-                        mpvObject.seekToPosition(pos);
+                        // 3. MPV로 강력한 직접 시크 명령 송출
+                        // 3.1 속성 직접 설정 (최우선)
+                        mpvObject.setProperty("time-pos", pos);
                         
-                        // 추가: 일시 정지 상태로 확실히 변경
-                        if (!isPlaying) {
-                            mpvObject.command(["set_property", "pause", "yes"]);
+                        // 3.2 시크 명령 전송 (정확도 향상)
+                        mpvObject.command(["seek", pos, "absolute", "exact"]);
+                        
+                        // 이전 위치에서 새 위치로 강제 시크 (최종 보장)
+                        var currentPos = mpvObject.getProperty("time-pos");
+                        if (currentPos !== undefined && currentPos !== null) {
+                            if (Math.abs(currentPos - pos) > 0.01) {
+                                // 차이가 있으면 다시 시크
+                                console.log("위치 차이 발견, 재시크 - 현재:", currentPos, "목표:", pos);
+                                mpvObject.setProperty("time-pos", pos);
+                                mpvObject.command(["seek", pos, "absolute", "exact"]);
+                            }
                         }
                         
-                        // 4. 중요: 현재 프레임 설정 및 시그널 발생 (상위 동기화)
+                        // 일시 정지 상태 확인
+                        if (!isPlaying) {
+                            mpvObject.setProperty("pause", true);
+                        }
+                        
+                        // 4. 내부 프레임 업데이트 - 먼저
+                        _internalFrame = dragFrame;
+                        
+                        // 5. 상위 컴포넌트에 알림 - 중요: 강제로 현재 프레임을 업데이트
+                        currentFrame = dragFrame; // 직접 현재 프레임 업데이트
+                        
+                        // 6. 시그널 발생 (추가)
                         seekRequested(dragFrame);
                     }
                     
-                    // 5. 드래그 상태 초기화
+                    // 7. 드래그 상태 초기화
                     isDragging = false;
                 
-                    // 6. 검증 타이머 시작 (더 길게 설정)
+                    // 8. 검증 타이머 시작 (더 길게 설정)
                     verifySeekTimer.interval = 100;
                     verifySeekTimer.restart();
                     
-                    // 7. 강제 동기화 타이머
+                    // 9. 강제 동기화 타이머
                     forceUpdateTimer.restart();
                     
-                    // 8. 복구 타이머 시작
-                    recoveryTimer.interval = 250;
+                    // 10. 복구 타이머 시작
+                    recoveryTimer.interval = 150;
                     recoveryTimer.restart();
                     
-                    // 9. MPV 동기화를 위한 두 번째 시크 (200ms 지연)
-                    secondSeekTimer.restart();
+                    // 11. MPV 동기화를 위한 두 번째 시크
+                    secondSyncTimer.start();
+                    
+                    // 12. 최종 확인
+                    finalSyncTimer.dragFrame = dragFrame;
+                    finalSyncTimer.start();
                 } catch (e) {
                     console.error("드래그 종료 오류:", e);
                     isDragging = false;
@@ -511,9 +622,9 @@ Item {
         }
     }
     
-    // 두 번째 시크 타이머 (지연 시크용)
+    // 두 번째 동기화 타이머 (Qt.setTimeout 대체)
     Timer {
-        id: secondSeekTimer
+        id: secondSyncTimer
         interval: 200
         repeat: false
         onTriggered: {
@@ -521,38 +632,6 @@ Item {
                 // 한 번 더 시크 명령 전송 (확실한 적용을 위해)
                 var pos = dragFrame / fps;
                 mpvObject.seekToPosition(pos);
-            }
-        }
-    }
-    
-    // 시크 디바운스 타이머 - 개선
-    Timer {
-        id: seekDebounceTimer
-        interval: 80  // 약간 더 높은 지연 (안정성)
-        repeat: false
-        onTriggered: {
-            if (isDragging && mpvObject) {
-                try {
-                    console.log("드래그 중 시크, 프레임:", dragFrame);
-                    
-                    // 정확한 시간 위치 계산
-                    var pos = dragFrame / fps;
-                    
-                    // MPV 명령 직접 사용하여 즉시 시크 (UI 업데이트 목적)
-                    // 직접 명령어 사용 - 더 강력한 적용을 위해
-                    mpvObject.command(["seek", pos, "absolute", "exact"]);
-                    mpvObject.seekToPosition(pos);
-                
-                    // 현재 위치 정보 업데이트 - 내부 프레임 업데이트
-                    var framesPerSecond = fps > 0 ? fps : 24.0;
-                    var frame = Math.round(pos * framesPerSecond);
-                    _internalFrame = frame;
-                    
-                    // 시그널 발생 (미리 상위에 알림)
-                    seekRequested(dragFrame);
-                } catch (e) {
-                    console.error("디바운스 시크 오류:", e);
-                }
             }
         }
     }
@@ -593,6 +672,40 @@ Item {
                 }
             } catch (e) {
                 console.error("Timeline recovery error:", e);
+            }
+        }
+    }
+    
+    // 최종 동기화 검증 타이머 (드래그 완료 후 300ms)
+    Timer {
+        id: finalSyncTimer
+        interval: 300
+        repeat: false
+        property int dragFrame: 0
+        
+        onTriggered: {
+            if (mpvObject) {
+                try {
+                    // 현재 실제 MPV 위치 확인
+                    var timePos = mpvObject.getProperty("time-pos");
+                    var currentMpvFrame = Math.round(timePos * fps);
+                    
+                    // UI 프레임과 큰 차이가 있는지 확인
+                    var targetFrame = dragFrame;
+                    if (Math.abs(currentMpvFrame - targetFrame) > 1) {
+                        console.log("최종 동기화: 불일치 감지 -", currentMpvFrame, "vs", targetFrame);
+                        
+                        // 한 번 더 강제 시크
+                        var pos = targetFrame / fps;
+                        mpvObject.setProperty("time-pos", pos);
+                        mpvObject.command(["seek", pos, "absolute", "exact"]);
+                        
+                        // 상위 객체에도 알림
+                        seekRequested(targetFrame);
+                    }
+                } catch (e) {
+                    console.error("최종 동기화 오류:", e);
+                }
             }
         }
     }
