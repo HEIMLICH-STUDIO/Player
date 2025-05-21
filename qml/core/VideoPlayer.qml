@@ -84,6 +84,15 @@ Item {
         // 비디오 영역에서 프레임 변경될 때 호출
         function onOnFrameChangedEvent(frame) {
             console.log("MPV 싱크: 비디오에서 프레임 변경 감지:", frame);
+
+            // 타임라인이 드래그 중이면 영상 측 업데이트를 잠시 무시하여
+            // 사용자가 선택한 프레임을 우선시한다. 드래그 중인 프레임은
+            // ControlBar에서 VideoArea로 직접 전달되므로 여기서는 무시한다.
+            if (controlBar && controlBar.frameTimeline &&
+                controlBar.frameTimeline.isDragging) {
+                return;
+            }
+
             root.currentFrame = frame;
             
             // MPV 현재 위치 확인
