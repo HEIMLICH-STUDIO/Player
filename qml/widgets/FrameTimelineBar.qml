@@ -57,7 +57,6 @@ Item {
     
     // 플레이헤드 직접 위치 결정 (외부에서 설정된 값이 있으면 우선 사용)
     property real playheadPosition: getExactFramePosition(_internalFrame)
-    property bool seekInProgress: false  // 시크 작업 진행 중 플래그
     
     // 프레임 카운터 표시 계산
     property int displayOffset: (mpvObject && mpvObject.oneBasedFrameNumbers) ? 1 : 0
@@ -113,41 +112,13 @@ Item {
     }
     
     // MPV 시크 작업 최적화 - 중복 코드 제거 및 통합 (새로 추가)
+    // Drag 또는 클릭 시 MPV에 중복 명령을 보내지 않도록 단순화된 시크 함수
     function performMpvSeek(frame) {
-        if (!mpvObject) return false;
-        
-        try {
-            console.log("Performing optimized MPV seek to frame:", frame);
-            
-            // 정확한 시간 위치 계산
-            var pos = frame / fps;
-            
-            // 1. 직접 속성 설정 (한 번만 실행, 중복 방지)
-            mpvObject.setProperty("time-pos", pos);
-            
-            // 2. 일시 정지 상태 확인
-            mpvObject.setProperty("pause", true);
-            
-            // 3. 강화된 시크 명령 (정확한 프레임 이동을 위해)
-            mpvObject.command(["seek", pos.toFixed(6), "absolute", "exact"]);
-            
-            // 4. 부모에 있는 seekToFrame 직접 호출 (클릭에 대한 처리 개선)
-            if (mpvObject.parentItem && typeof mpvObject.parentItem.seekToFrame === "function") {
-                mpvObject.parentItem.seekToFrame(frame);
-            }
-            
-            // 5. 내부 프레임 업데이트
-            _internalFrame = frame;
-            currentFrame = frame;
-            
-            // 6. 시그널 발생 (2단계 보장)
-            seekRequested(frame);
-            
-            return true;
-        } catch (e) {
-            console.error("MPV seek error:", e);
-            return false;
-        }
+        // 내부 상태만 업데이트하고 상위로 시그널을 전달한다
+        _internalFrame = frame;
+        currentFrame = frame;
+        seekRequested(frame);
+        return true;
     }
     
     // 내부 상태 초기화 (강제 동기화 시 사용)
@@ -210,63 +181,6 @@ Item {
         }
     }
     
-    // 시크 후 검증 타이머 - 더 강력한 동기화 (간격 증가)
-    Timer {
-        id: verifySeekTimer
-        interval: 200  // 간격 더 증가 (200ms) - CPU 부하 추가 감소
-        repeat: false
-        
-        // 시크 실패 방지를 위한 재시도 제한
-        property int retryCount: 0
-        property int maxRetries: 2
-        
-        onTriggered: {
-            try {
-                // 1. 최종 시크 후 실제 위치 다시 확인
-                if (mpvObject) {
-                    var finalPos = mpvObject.getProperty("time-pos");
-                    if (finalPos !== undefined && finalPos !== null) {
-                        var finalFrame = Math.round(finalPos * fps);
-                        console.log("Verification: MPV frame=", finalFrame, "_internalFrame=", _internalFrame);
-                        
-                        // 계산된 프레임과 현재 프레임이 크게 다른 경우에만 재동기화
-                        // 차이 값 증가 - CPU 부하 감소
-                        if (Math.abs(finalFrame - _internalFrame) > 3) {
-                            console.log("Frame mismatch detected - synchronizing");
-                            
-                            // 내부 프레임 업데이트
-                            _internalFrame = finalFrame;
-                            updatePlayhead();
-                            
-                            // 차이가 매우 큰 경우에만 다시 시크 시도 (극단적인 경우만)
-                            if (Math.abs(finalFrame - currentFrame) > 10 && retryCount < maxRetries) {
-                                console.log("Large frame mismatch - retrying seek operation");
-                                retryCount++;
-                                // 차이가 크면 다시 시크 시도
-                                seekRequested(finalFrame);
-                                
-                                // 타이머 재시작하고 여기서 종료
-                                verifySeekTimer.restart();
-                                return;
-                            }
-                        }
-                    }
-                }
-            
-                // 2. 시크 완료 처리
-                seekInProgress = false;
-                retryCount = 0; // 재시도 카운트 리셋
-                
-                // 3. 안정화 기간 종료 (렉 방지 - 중요한 개선)
-                stabilizationTimer.restart();
-            } catch (e) {
-                console.error("Seek verification error:", e);
-                seekInProgress = false;
-                retryCount = 0; // 오류 시에도 카운트 리셋
-                stabilizationTimer.restart();
-            }
-        }
-    }
     
     // 새로 추가: 안정화 타이머 - 드래그 후 렉 방지를 위한 핵심 개선
     Timer {
@@ -286,16 +200,10 @@ Item {
         interval: 80  // 간격 증가 (80ms) - CPU 부하 감소하되 반응성 유지
         repeat: false
         onTriggered: {
-            if (isDragging && mpvObject) {
+            if (isDragging) {
                 try {
                     console.log("Drag seek (debounced), frame:", dragFrame);
-                    
-                    // 통합된 MPV 시크 함수 사용
                     performMpvSeek(dragFrame);
-                    
-                    // 시그널 발생 (상위 알림)
-                    seekRequested(dragFrame);
-                    
                 } catch (e) {
                     console.error("Debounce seek error:", e);
                 }
@@ -492,34 +400,13 @@ Item {
                 activeTrack.width = playhead.x;
                 
                 // Immediately seek to the clicked position
-                if (mpvObject) {
-                    seekInProgress = true;
-                    try {
-                        // 클릭 시크 개선 - 더 강력한 시크 방식 적용
-                        // 1. 내부 프레임 즉시 업데이트
-                        _internalFrame = dragFrame;
-                        currentFrame = dragFrame;
-                        
-                        // 2. 통합된 MPV 시크 함수 사용 (개선)
-                        performMpvSeek(dragFrame);
-                        
-                        // 3. 시그널 강화 - 여러 경로로 시그널 발생
-                        console.log("Click seek:", dragFrame);
-                        
-                        // 4. VideoArea 컴포넌트의 seekToFrame 함수 직접 호출 시도
-                        if (mpvObject && mpvObject.parentItem && 
-                            typeof mpvObject.parentItem.seekToFrame === "function") {
-                            mpvObject.parentItem.seekToFrame(dragFrame);
-                        }
-                        
-                        // 5. 중요: 클릭 시크를 위한 강화된 검증 즉시 시작
-                        Qt.callLater(function() {
-                            verifySeekTimer.restart();
-                        });
-                    } catch (e) {
-                        console.error("Click seek error:", e);
-                        seekInProgress = false;
-                    }
+                try {
+                    _internalFrame = dragFrame;
+                    currentFrame = dragFrame;
+                    performMpvSeek(dragFrame);
+                    console.log("Click seek:", dragFrame);
+                } catch (e) {
+                    console.error("Click seek error:", e);
                 }
             }
             
@@ -538,23 +425,12 @@ Item {
                     // 메타데이터는 처음 파일 로드시에만 필요하므로 해제하지 않음
                     
                     // Ensure a final accurate seek occurs
-                    if (mpvObject) {
-                        try {
-                            // 통합된 MPV 시크 함수 사용 (개선)
-                            performMpvSeek(dragFrame);
-                            
-                            // Verify after a short delay
-                            verifySeekTimer.restart();
-                        } catch (e) {
-                            console.error("Final seek error:", e);
-                            // 오류 시에도 안정화 타이머 시작
-                            stabilizationTimer.restart();
-                            seekInProgress = false;
-                        }
-                    } else {
-                        // MPV가 없어도 안정화 타이머 시작
+                    try {
+                        performMpvSeek(dragFrame);
                         stabilizationTimer.restart();
-                        seekInProgress = false;
+                    } catch (e) {
+                        console.error("Final seek error:", e);
+                        stabilizationTimer.restart();
                     }
                     
                     // End drag operation

@@ -359,20 +359,9 @@ Item {
             // 시그널 연결
             onSeekToFrameRequested: function(frame) {
                 console.log("VideoPlayer: Seek frame request -", frame);
-                
-                // 1. First, update internal state immediately
+
                 root.currentFrame = frame;
-                
-                // 2. Pass seek command to video area
                 videoArea.seekToFrame(frame);
-                
-                // 3. Pass seek command directly to MPV (double guarantee)
-                var mpv = getMpvObject();
-                if (mpv) {
-                    var pos = frame / fps;
-                    mpv.setProperty("time-pos", pos);
-                    console.log("MPV direct seek command:", pos);
-                }
             }
             
             onOpenFileRequested: videoArea.openFile()

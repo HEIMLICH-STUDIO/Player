@@ -599,191 +599,45 @@ Item {
         if (mpvPlayer) {
             try {
                 console.log("VideoArea: Frame seek request -", targetFrame);
-                
-                // 메타데이터 업데이트 차단 설정
+
                 metadataUpdateBlocked = true;
-                
-                // 1. 영상 위치 검증
+
                 if (typeof mpvPlayer.duration !== 'undefined' && mpvPlayer.duration <= 0) {
                     console.error("No valid video - cannot seek");
-                    metadataUpdateBlocked = false; // 차단 해제
+                    metadataUpdateBlocked = false;
                     return;
                 }
-                
-                // 2. 프레임 범위 확인
+
                 if (targetFrame < 0 || targetFrame >= frames) {
-                    console.error("Invalid frame range:", targetFrame, "range:", 0, "-", frames-1);
                     targetFrame = Math.max(0, Math.min(targetFrame, frames - 1));
                 }
-                
-                // 3. 타임스탬프 계산
+
                 var timePos = targetFrame / fps;
-                
-                // 시크 명령 카운트 - 디버깅용
-                console.log("Seek started - frame:", targetFrame, "time:", timePos);
-                
-                // 4. 항상 일시정지 상태로 변경 - 정확한 프레임 포지셔닝 위해
+
                 mpvPlayer.setProperty("pause", true);
-                
-                // 5. MPV 강력한 시크 구현 - 개선된 시크 방식
-                // 5.1. 직접 명령어 사용 (가장 정확함)
-                var seekCommand = "seek " + timePos.toFixed(6) + " absolute exact";
-                mpvPlayer.command(["script-message", "osd-overlay", "Seeking to frame: " + targetFrame]);
-                mpvPlayer.command(["set", "pause", "yes"]);
                 mpvPlayer.command(["seek", timePos.toFixed(6), "absolute", "exact"]);
-                
-                // 5.2. 백업: 직접 속성 설정 
                 mpvPlayer.setProperty("time-pos", timePos);
-                
-                // 6. 내부 프레임 즉시 업데이트 (UI 응답성)
+
                 root.frame = targetFrame;
                 root.onFrameChangedEvent(targetFrame);
-                
-                // 7. 강화된 시크 동기화: 프레임 불일치 방지
-                // 첫 번째 확인 - 즉시
-                Qt.callLater(function() {
-                    if (mpvPlayer) {
-                        try {
-                            var actualPos = mpvPlayer.getProperty("time-pos");
-                            var actualFrame = Math.round(actualPos * fps);
-                            console.log("Initial seek verification: requested=", targetFrame, "actual=", actualFrame);
-                            
-                            // 불일치 감지 시 즉시 재보정
-                            if (Math.abs(actualFrame - targetFrame) > 0) {
-                                console.log("Frame mismatch detected, immediate correction");
-                                mpvPlayer.command(["seek", timePos.toFixed(6), "absolute", "exact"]);
-                                mpvPlayer.setProperty("pause", true);
-                            }
-                        } catch (e) {
-                            console.error("Seek verification error:", e);
-                        }
-                    }
-                });
-                
-                // 8. 강화된 중간 확인 타이머 - 더 정확한 시크를 위해
-                secondSeekTimer.timePos = timePos;
-                secondSeekTimer.targetFrame = targetFrame;
-                secondSeekTimer.interval = 100; // 더 빠른 응답
-                secondSeekTimer.start();
-                
-                // 9. 최종 검증 - 3중 확인
-                finalVerifyTimer.timePos = timePos;
-                finalVerifyTimer.targetFrame = targetFrame;
-                finalVerifyTimer.interval = 200; // 더 빠른 응답
-                finalVerifyTimer.start();
-                
-                // 10. 메타데이터 업데이트 차단 해제 예약
+
                 metadataBlockReleaseTimer.restart();
-                
+
                 return true;
             } catch (e) {
                 console.error("Frame seek error:", e);
                 showMessage("Frame seek error: " + e);
-                metadataUpdateBlocked = false; // 차단 해제
+                metadataUpdateBlocked = false;
                 return false;
             }
         } else {
             console.error("Cannot seek: player not initialized");
             showMessage("Player not initialized");
-            metadataUpdateBlocked = false; // 차단 해제
+            metadataUpdateBlocked = false;
             return false;
         }
     }
     
-    // 두 번째 시크 타이머 (setTimeout 대체)
-    Timer {
-        id: secondSeekTimer
-        interval: 100
-        repeat: false
-        property real timePos: 0
-        property int targetFrame: 0
-        
-        onTriggered: {
-            if (mpvPlayer) {
-                try {
-                    // 명령어로 한 번 더 정확한 위치 지정
-                    mpvPlayer.command(["seek", timePos.toFixed(6), "absolute", "exact"]);
-                    mpvPlayer.setProperty("pause", true);
-                    
-                    // 현재 프레임 상태 재확인 및 시그널 발생
-                    var actualPos = mpvPlayer.getProperty("time-pos");
-                    if (actualPos !== undefined && actualPos !== null) {
-                        var actualFrame = Math.round(actualPos * fps);
-                        console.log("Second verification: requested=", targetFrame, "actual=", actualFrame);
-                        
-                        if (Math.abs(actualFrame - targetFrame) > 0) {
-                            console.log("Frame still mismatched, performing second correction");
-                            // 세 번째 시도: 더 정확한 시간으로 시크
-                            var correctedTimePos = targetFrame / fps;
-                            mpvPlayer.command(["seek", correctedTimePos.toFixed(6), "absolute", "exact"]);
-                            mpvPlayer.setProperty("pause", true);
-                            mpvPlayer.setProperty("time-pos", correctedTimePos);
-                            
-                            // UI 업데이트
-                            root.frame = targetFrame;
-                            root.onFrameChangedEvent(targetFrame);
-                        }
-                    }
-                } catch (e) {
-                    console.error("Second seek timer error:", e);
-                }
-            }
-        }
-    }
-    
-    // 최종 검증 타이머 (완전한 동기화 보장)
-    Timer {
-        id: finalVerifyTimer
-        interval: 250
-        repeat: false
-        property real timePos: 0
-        property int targetFrame: 0
-        
-        onTriggered: {
-            if (mpvPlayer) {
-                try {
-                    // 최종 상태 검증
-                    mpvPlayer.setProperty("pause", true);
-                    var actualPos = mpvPlayer.getProperty("time-pos");
-                    if (actualPos !== undefined && actualPos !== null) {
-                        var actualFrame = Math.round(actualPos * fps);
-                        console.log("Verification: MPV frame=", actualFrame, "_internalFrame=", targetFrame);
-                        
-                        // 여전히 불일치가 있는지 확인
-                        if (Math.abs(actualFrame - targetFrame) > 0) {
-                            console.log("Frame mismatch detected - synchronizing");
-                            
-                            // 최종 동기화 시도
-                            var finalTimePos = targetFrame / fps;
-                            
-                            // 1. 직접 속성 설정
-                            mpvPlayer.setProperty("time-pos", finalTimePos);
-                            mpvPlayer.setProperty("pause", true);
-                            
-                            // 2. 명령 인터페이스 사용 (3중 동기화)
-                            mpvPlayer.command(["seek", finalTimePos.toFixed(6), "absolute", "exact"]);
-                            
-                            // 3. 마지막 프레임 상태 재설정 (동기화)
-                            root.frame = targetFrame;
-                            root.onFrameChangedEvent(targetFrame);
-                            
-                            // MPV가 정확한 프레임을 표시할 시간을 주기
-                            Qt.callLater(function() {
-                                // 우선 내부 상태 확인
-                                console.log("Frame seek final confirmation complete:", targetFrame);
-                                console.log("Stabilization period ended");
-                            });
-                        } else {
-                            console.log("Frame seek final confirmation complete:", targetFrame);
-                            console.log("Stabilization period ended");
-                        }
-                    }
-                } catch (e) {
-                    console.error("Final verification timer error:", e);
-                }
-            }
-        }
-    }
     
     // 메타데이터 업데이트 차단 해제 타이머
     Timer {
