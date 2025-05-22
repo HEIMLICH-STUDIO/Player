@@ -154,6 +154,34 @@ Window {
                         }
                     }
                     
+                    // 고급 설정 탭
+                    TabButton {
+                        height: 54
+                        text: "Advanced"
+                        width: Math.max(100, implicitWidth)
+                        
+                        contentItem: Text {
+                            text: parent.text
+                            font.pixelSize: 15
+                            font.weight: parent.checked ? Font.DemiBold : Font.Normal
+                            color: parent.checked ? ThemeManager.accentColor : ThemeManager.tabButtonTextColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        
+                        background: Rectangle {
+                            color: "transparent"
+                            
+                            Rectangle {
+                                width: parent.width
+                                height: 3
+                                anchors.bottom: parent.bottom
+                                color: parent.parent.checked ? ThemeManager.accentColor : "transparent"
+                                radius: 1.5
+                            }
+                        }
+                    }
+                    
                     // 정보 탭
                     TabButton {
                         height: 54
@@ -222,8 +250,8 @@ Window {
                                 implicitWidth: ThemeManager.scrollBarWidth
                                 radius: ThemeManager.scrollBarRadius
                                 color: parent.pressed ? ThemeManager.scrollBarActiveColor : 
-                                       parent.hovered ? ThemeManager.scrollBarHoverColor : 
-                                       ThemeManager.scrollBarColor
+                                               parent.hovered ? ThemeManager.scrollBarHoverColor : 
+                                               ThemeManager.scrollBarColor
                             }
                         }
                         
@@ -861,6 +889,326 @@ Window {
                                             onCurrentIndexChanged: {
                                                 if (mpvObject) {
                                                     mpvObject.oneBasedFrameNumbers = (currentIndex === 1);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 고급 설정 탭
+                Item {
+                    id: advancedTab
+                    
+                    // 설정 목록을 스크롤 가능하게
+                    ScrollView {
+                        anchors.fill: parent
+                        anchors.margins: 20
+                        clip: true
+                        
+                        // 스크롤바 스타일링
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                            width: ThemeManager.scrollBarWidth
+                            
+                            background: Rectangle {
+                                color: ThemeManager.scrollBarBgColor
+                                radius: ThemeManager.scrollBarRadius
+                            }
+                            
+                            contentItem: Rectangle {
+                                implicitWidth: ThemeManager.scrollBarWidth
+                                radius: ThemeManager.scrollBarRadius
+                                color: parent.pressed ? ThemeManager.scrollBarActiveColor : 
+                                               parent.hovered ? ThemeManager.scrollBarHoverColor : 
+                                               ThemeManager.scrollBarColor
+                            }
+                        }
+                        
+                        Column {
+                            width: parent.width
+                            spacing: 24
+                            
+                            // 성능 최적화 섹션
+                            SettingsSection {
+                                title: "Performance Optimization"
+                                width: parent.width
+                                
+                                SettingsCard {
+                                    title: "Caching Options"
+                                    
+                                    Column {
+                                        width: parent.width
+                                        spacing: 20
+                                        
+                                        // 캐시 초 설정
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 10
+                                            
+                                            Text {
+                                                text: "Cache Seconds"
+                                                color: ThemeManager.textColor
+                                                font.pixelSize: 14
+                                                Layout.fillWidth: true
+                                                
+                                                ToolTip.text: "Sets the maximum number of seconds to buffer. Higher values reduce stuttering on slow systems."
+                                                ToolTip.visible: cacheMouseArea.containsMouse
+                                                ToolTip.delay: 500
+                                            }
+                                            
+                                            MouseArea {
+                                                id: cacheMouseArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                propagateComposedEvents: true
+                                            }
+                                            
+                                            SpinBox {
+                                                id: cacheSecsSpinBox
+                                                from: 10
+                                                to: 600
+                                                value: mpvObject ? (mpvObject.getProperty("cache-secs") || 30) : 30
+                                                stepSize: 10
+                                                
+                                                onValueChanged: {
+                                                    if (mpvObject) {
+                                                        mpvObject.setProperty("cache-secs", value);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        // 디먹서 미리 읽기 초 설정
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 10
+                                            
+                                            Text {
+                                                text: "Demuxer Readahead Seconds"
+                                                color: ThemeManager.textColor
+                                                font.pixelSize: 14
+                                                Layout.fillWidth: true
+                                                
+                                                ToolTip.text: "Determines how far ahead the demuxer reads. Higher values help with seeking performance."
+                                                ToolTip.visible: readaheadMouseArea.containsMouse
+                                                ToolTip.delay: 500
+                                            }
+                                            
+                                            MouseArea {
+                                                id: readaheadMouseArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                propagateComposedEvents: true
+                                            }
+                                            
+                                            SpinBox {
+                                                id: demuxerReadaheadSpinBox
+                                                from: 5
+                                                to: 300
+                                                value: mpvObject ? (mpvObject.getProperty("demuxer-readahead-secs") || 10) : 10
+                                                stepSize: 5
+                                                
+                                                onValueChanged: {
+                                                    if (mpvObject) {
+                                                        mpvObject.setProperty("demuxer-readahead-secs", value);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                SettingsCard {
+                                    title: "Seeking Options"
+                                    
+                                    Column {
+                                        width: parent.width
+                                        spacing: 20
+                                        
+                                        // 고정밀 탐색 옵션
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 10
+                                            
+                                            Text {
+                                                text: "High Precision Seeking"
+                                                color: ThemeManager.textColor
+                                                font.pixelSize: 14
+                                                Layout.fillWidth: true
+                                                
+                                                ToolTip.text: "Controls seeking precision. 'Always' is most accurate but slowest, 'On Demand' is a good balance."
+                                                ToolTip.visible: hrSeekMouseArea.containsMouse
+                                                ToolTip.delay: 500
+                                            }
+                                            
+                                            MouseArea {
+                                                id: hrSeekMouseArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                propagateComposedEvents: true
+                                            }
+                                            
+                                            ComboBox {
+                                                id: hrSeekComboBox
+                                                model: ["Always", "On Demand", "Never"]
+                                                
+                                                Component.onCompleted: {
+                                                    if (mpvObject) {
+                                                        var hrSeekValue = mpvObject.getProperty("hr-seek");
+                                                        if (hrSeekValue === "yes") {
+                                                            currentIndex = 0;
+                                                        } else if (hrSeekValue === "no") {
+                                                            currentIndex = 2;
+                                                        } else {
+                                                            currentIndex = 1;
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                onCurrentIndexChanged: {
+                                                    if (mpvObject) {
+                                                        var hrSeekValues = ["yes", "default", "no"];
+                                                        mpvObject.setProperty("hr-seek", hrSeekValues[currentIndex]);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        // 탐색 모드
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 10
+                                            
+                                            Text {
+                                                text: "Seek Mode"
+                                                color: ThemeManager.textColor
+                                                font.pixelSize: 14
+                                                Layout.fillWidth: true
+                                                
+                                                ToolTip.text: "Absolute seeks to exact position, Relative seeks from current position, Keyframes only jumps to keyframes (fastest)."
+                                                ToolTip.visible: seekModeMouseArea.containsMouse
+                                                ToolTip.delay: 500
+                                            }
+                                            
+                                            MouseArea {
+                                                id: seekModeMouseArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                propagateComposedEvents: true
+                                            }
+                                            
+                                            ComboBox {
+                                                id: seekModeComboBox
+                                                model: ["Absolute", "Relative", "Keyframes Only"]
+                                                
+                                                Component.onCompleted: {
+                                                    if (mpvObject) {
+                                                        var seekMode = mpvObject.getProperty("seek-mode");
+                                                        if (seekMode === "absolute") {
+                                                            currentIndex = 0;
+                                                        } else if (seekMode === "relative") {
+                                                            currentIndex = 1;
+                                                        } else if (seekMode === "keyframes") {
+                                                            currentIndex = 2;
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                onCurrentIndexChanged: {
+                                                    if (mpvObject) {
+                                                        var seekModeValues = ["absolute", "relative", "keyframes"];
+                                                        mpvObject.setProperty("seek-mode", seekModeValues[currentIndex]);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                SettingsCard {
+                                    title: "Memory & Buffer Settings"
+                                    
+                                    Column {
+                                        width: parent.width
+                                        spacing: 20
+                                        
+                                        // 캐시 크기 조절
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 10
+                                            
+                                            Text {
+                                                text: "Cache Size (MB)"
+                                                color: ThemeManager.textColor
+                                                font.pixelSize: 14
+                                                Layout.fillWidth: true
+                                                
+                                                ToolTip.text: "Sets the maximum memory used for caching. Higher values use more RAM but improve playback smoothness."
+                                                ToolTip.visible: cacheSizeMouseArea.containsMouse
+                                                ToolTip.delay: 500
+                                            }
+                                            
+                                            MouseArea {
+                                                id: cacheSizeMouseArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                propagateComposedEvents: true
+                                            }
+                                            
+                                            SpinBox {
+                                                id: cacheSizeSpinBox
+                                                from: 50
+                                                to: 1024
+                                                value: mpvObject ? (mpvObject.getProperty("demuxer-max-bytes") / (1024*1024) || 150) : 150
+                                                stepSize: 50
+                                                
+                                                onValueChanged: {
+                                                    if (mpvObject) {
+                                                        // 값을 MB에서 바이트로 변환
+                                                        mpvObject.setProperty("demuxer-max-bytes", value * 1024 * 1024);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        // 버퍼링 지속 시간 조절
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 10
+                                            
+                                            Text {
+                                                text: "Initial Cache Duration (ms)"
+                                                color: ThemeManager.textColor
+                                                font.pixelSize: 14
+                                                Layout.fillWidth: true
+                                                
+                                                ToolTip.text: "Wait this many milliseconds before starting playback. Increase for smoother start."
+                                                ToolTip.visible: bufferingMouseArea.containsMouse
+                                                ToolTip.delay: 500
+                                            }
+                                            
+                                            MouseArea {
+                                                id: bufferingMouseArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                propagateComposedEvents: true
+                                            }
+                                            
+                                            SpinBox {
+                                                id: bufferingSpinBox
+                                                from: 0
+                                                to: 10000
+                                                value: mpvObject ? (mpvObject.getProperty("cache-initial") || 0) : 0
+                                                stepSize: 100
+                                                
+                                                onValueChanged: {
+                                                    if (mpvObject) {
+                                                        mpvObject.setProperty("cache-initial", value);
+                                                    }
                                                 }
                                             }
                                         }

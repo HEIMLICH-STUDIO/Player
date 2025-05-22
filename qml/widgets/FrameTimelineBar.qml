@@ -63,9 +63,29 @@ Item {
     property int displayOffset: (mpvObject && mpvObject.oneBasedFrameNumbers) ? 1 : 0
     property string frameCounterText: {
         if (isDragging) {
-            return (dragFrame + displayOffset) + " / " + (totalFrames ? (totalFrames + displayOffset - 1) : 0);
+            // 드래그 중에는 표시 오프셋 적용 - 1-172 또는 0-171
+            var displayDragFrame = dragFrame + displayOffset;
+            var displayTotalFrames = totalFrames > 0 ? totalFrames : 0;
+            
+            // 최대 프레임 번호 계산 (0-base면 totalFrames-1, 1-base면 totalFrames)
+            var maxDisplayFrame = displayTotalFrames;
+            if (displayOffset === 0 && displayTotalFrames > 0) {
+                maxDisplayFrame = displayTotalFrames - 1;
+            }
+            
+            return displayDragFrame + " / " + maxDisplayFrame;
         } else {
-            return (_internalFrame + displayOffset) + " / " + (totalFrames ? (totalFrames + displayOffset - 1) : 0);
+            // 일반 상태에서도 표시 오프셋 적용
+            var displayCurrentFrame = _internalFrame + displayOffset;
+            var displayTotalFrames = totalFrames > 0 ? totalFrames : 0;
+            
+            // 최대 프레임 번호 계산 (0-base면 totalFrames-1, 1-base면 totalFrames)
+            var maxDisplayFrame = displayTotalFrames;
+            if (displayOffset === 0 && displayTotalFrames > 0) {
+                maxDisplayFrame = displayTotalFrames - 1;
+            }
+            
+            return displayCurrentFrame + " / " + maxDisplayFrame;
         }
     }
     
@@ -74,6 +94,13 @@ Item {
     onCurrentFrameChanged: {
         if (!isDragging && !seekStabilizing && currentFrame !== _internalFrame) {
             console.log("Timeline: External frame change detected:", currentFrame);
+            
+            // 범위 검증 - 외부에서 잘못된 프레임 번호가 전달될 경우 방지
+            if (totalFrames > 0 && currentFrame >= totalFrames) {
+                console.warn("Timeline: Received invalid frame number:", currentFrame, "max:", totalFrames-1);
+                return; // 잘못된 프레임 번호 무시
+            }
+            
             _internalFrame = currentFrame;
             updatePlayhead();
         }
@@ -83,6 +110,13 @@ Item {
     on_InternalFrameChanged: {
         // 내부 프레임이 변경되면 플레이헤드 업데이트
         updatePlayhead();
+        
+        // 범위 검증 - 내부에서 잘못된 프레임 번호가 설정된 경우 방지
+        if (totalFrames > 0 && _internalFrame >= totalFrames) {
+            console.warn("Timeline: Internal frame out of range:", _internalFrame, "max:", totalFrames-1);
+            _internalFrame = totalFrames - 1; // 최대값으로 보정
+            return;
+        }
         
         // 드래그 중이 아니고, 안정화 중이 아니고, 현재 프레임과 차이가 있을 때만 외부에 알림
         if (!isDragging && !seekStabilizing && _internalFrame !== currentFrame) {
@@ -119,29 +153,41 @@ Item {
         try {
             console.log("Performing optimized MPV seek to frame:", frame);
             
-            // 정확한 시간 위치 계산
-            var pos = frame / fps;
+            // MPV 명령 오류 방지를 위한 핵심 변경: 직접 속성 설정만 사용
             
-            // 1. 직접 속성 설정 (한 번만 실행, 중복 방지)
-            mpvObject.setProperty("time-pos", pos);
-            
-            // 2. 일시 정지 상태 확인
+            // 1. 먼저 안전하게 속성 설정 (MPV 명령보다 더 안정적)
             mpvObject.setProperty("pause", true);
             
-            // 3. 강화된 시크 명령 (정확한 프레임 이동을 위해)
-            mpvObject.command(["seek", pos.toFixed(6), "absolute", "exact"]);
-            
-            // 4. 부모에 있는 seekToFrame 직접 호출 (클릭에 대한 처리 개선)
-            if (mpvObject.parentItem && typeof mpvObject.parentItem.seekToFrame === "function") {
-                mpvObject.parentItem.seekToFrame(frame);
+            // 2. 프레임 오프셋 조정 (1-based 고정)
+            // 항상 1-based로 처리 (중요: 0번 프레임이면 자동으로 1로 변환)
+            var adjustedFrame = Math.max(1, frame + 1);
+            if (frame === 0) {
+                console.log("프레임 인덱스 조정: 0 -> 1 (1-based 인덱싱 적용)");
             }
             
-            // 5. 내부 프레임 업데이트
-            _internalFrame = frame;
-            currentFrame = frame;
+            // 3. 정확한 위치 계산 (조정된 프레임 기준)
+            var adjustedPos = (adjustedFrame - 1) / fps; // 0-based 시간 위치 계산
             
-            // 6. 시그널 발생 (2단계 보장)
+            // 4. 명확한 소수점 형식으로 변환 (MPV 명령 오류 방지)
+            // toFixed(6)로 명시적 문자열 형식을 만든 후 다시 Number로 변환
+            var numericPos = Number(adjustedPos.toFixed(6));
+            
+            // 5. MPV 명령 대신 직접 속성 설정만 사용 (더 안정적)
+            console.log("Setting MPV position directly:", numericPos, "(프레임:", adjustedFrame, ")");
+            mpvObject.setProperty("time-pos", numericPos);
+            
+            // 6. 내부 프레임 업데이트
+            _internalFrame = frame;
+            currentFrame = frame; // UI와 내부 값 일치시킴
+            
+            // 7. 강제 업데이트 (UI 반응성)
+            mpvObject.update();
+            
+            // 8. 프레임 동기화 시그널 발생
             seekRequested(frame);
+            
+            // 9. 동기화 안정화 시작
+            seekStabilizing = true;
             
             return true;
         } catch (e) {
@@ -299,6 +345,48 @@ Item {
                 } catch (e) {
                     console.error("Debounce seek error:", e);
                 }
+            }
+        }
+    }
+    
+    // 최종 검증 타이머 추가
+    Timer {
+        id: finalVerificationTimer
+        interval: 100
+        repeat: false
+        property int verifyDragFrame: 0
+        
+        onTriggered: {
+            try {
+                if (mpvObject) {
+                    // 실제 위치 확인
+                    var actualPos = mpvObject.getProperty("time-pos");
+                    var actualFrame = Math.round(actualPos * fps);
+                    
+                    console.log("Final verification - expected:", verifyDragFrame, "actual:", actualFrame);
+                    
+                    // 차이가 있으면 마지막으로 한 번 더 시크
+                    if (Math.abs(actualFrame - verifyDragFrame) > 0) {
+                        var finalPos = verifyDragFrame / fps;
+                        
+                        // 세 번째 시크 - 더 강제적인 방식
+                        mpvObject.command(["seek", finalPos.toFixed(6), "absolute", "exact"]);
+                        mpvObject.setProperty("pause", true);
+                        
+                        // 프레임 설정 강제 업데이트
+                        _internalFrame = verifyDragFrame;
+                        currentFrame = verifyDragFrame;
+                        
+                        // 강제 갱신
+                        mpvObject.update();
+                    }
+                }
+            } catch (e) {
+                console.error("Final verification error:", e);
+            } finally {
+                // 최종 안정화 타이머 시작
+                stabilizationTimer.restart();
+                seekInProgress = false;
             }
         }
     }
@@ -540,11 +628,36 @@ Item {
                     // Ensure a final accurate seek occurs
                     if (mpvObject) {
                         try {
-                            // 통합된 MPV 시크 함수 사용 (개선)
-                            performMpvSeek(dragFrame);
+                            // 드래그 후 프레임 멈춤 문제 해결을 위한 개선된 시크 처리
                             
-                            // Verify after a short delay
-                            verifySeekTimer.restart();
+                            // 1. 드래그 후 첫 번째 시크 - 속성 직접 설정 (빠른 응답)
+                            var pos = dragFrame / fps;
+                            mpvObject.setProperty("time-pos", pos);
+                            mpvObject.setProperty("pause", true);
+                            
+                            // 2. 지연 시간을 둔 후 두 번째 시크 실행 (더 정확한 프레임 설정)
+                            Qt.callLater(function() {
+                                try {
+                                    // 정확한 시크 명령 실행
+                                    mpvObject.command(["seek", pos.toFixed(6), "absolute", "exact"]);
+                                    
+                                    // 강제 업데이트 요청
+                                    mpvObject.update();
+                                    
+                                    // 상태 확인 타이머 재시작
+                                    verifySeekTimer.restart();
+                                } catch (e) {
+                                    console.error("Second seek error:", e);
+                                }
+                            });
+                            
+                            // 3. 더 긴 지연 후 최종 프레임 위치 확인 및 수정
+                            Qt.callLater(function() {
+                                // 새로 추가한 최종 검증 타이머 사용
+                                finalVerificationTimer.verifyDragFrame = dragFrame;
+                                finalVerificationTimer.restart();
+                            });
+                            
                         } catch (e) {
                             console.error("Final seek error:", e);
                             // 오류 시에도 안정화 타이머 시작

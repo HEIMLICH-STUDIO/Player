@@ -14,7 +14,7 @@ Window {
     height: 720
     minimumWidth: 800
     minimumHeight: 600
-    title: "HYPER-PLAYER"
+    title: "Player by HEIMLICH®"
     color: ThemeManager.backgroundColor
     
     // 전체화면 상태

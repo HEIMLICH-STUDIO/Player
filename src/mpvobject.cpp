@@ -153,6 +153,9 @@ MpvObject::MpvObject(QQuickItem * parent)
         throw std::runtime_error("Could not create mpv context");
     }
 
+    // 기본값 설정 - 중요: 1-based 프레임 번호 사용
+    m_oneBasedFrameNumbers = true;
+    
     // 기본 MPV 옵션 설정 - 성능 및 안정성 개선
     mpv_set_option_string(mpv, "vo", "libmpv");
     
@@ -171,9 +174,16 @@ MpvObject::MpvObject(QQuickItem * parent)
     
     // 성능 최적화 - 버퍼링 설정
     mpv_set_option_string(mpv, "cache", "yes");
-    mpv_set_option_string(mpv, "cache-secs", "10");
-    mpv_set_option_string(mpv, "demuxer-max-bytes", "100M");
-    mpv_set_option_string(mpv, "demuxer-max-back-bytes", "100M");
+    mpv_set_option_string(mpv, "cache-secs", "30");  // 10초에서 30초로 증가
+    mpv_set_option_string(mpv, "demuxer-readahead-secs", "30");  // 명시적으로 30초로 설정
+    mpv_set_option_string(mpv, "demuxer-max-bytes", "150M");  // 100M에서 150M으로 증가
+    mpv_set_option_string(mpv, "demuxer-max-back-bytes", "150M");  // 100M에서 150M으로 증가
+    
+    // 추가 시크 성능 관련 설정
+    mpv_set_option_string(mpv, "hr-seek-demuxer-offset", "0");  // 시크 정확도 개선
+    mpv_set_option_string(mpv, "video-sync-max-factor", "1");  // 비디오 싱크 안정성 개선
+    mpv_set_option_string(mpv, "video-latency-hacks", "yes");  // 렌더링 지연 감소
+    mpv_set_option_string(mpv, "opengl-swapinterval", "1");  // 수직 동기화 활성화 (티어링 방지)
     
     // 렌더링 성능 최적화
     mpv_set_option_string(mpv, "gpu-dumb-mode", "no");
@@ -320,15 +330,13 @@ void MpvObject::handleMpvEvents()
                             if (m_endReached != eofReached) {
                                 m_endReached = eofReached;
                                 if (m_endReached) {
-                                    qDebug() << "End of file reached";
-                                    emit endReached();
+                                    qDebug() << "End of file reached - handling EOF event";
                                     
-                                    // 반복 재생 모드 확인
-                                    if (m_loopEnabled) {
-                                        qDebug() << "Looping enabled, restarting playback";
-                                        mpv_command_string(mpv, "seek 0 absolute");
-                                        mpv_command_string(mpv, "set pause no");
-                                    }
+                                    // handleEndOfVideo 함수 호출
+                                    // 즉시 실행하지 않고 조금 지연시켜 안정성 향상
+                                    QTimer::singleShot(50, this, &MpvObject::handleEndOfVideo);
+                                    
+                                    emit endReached();
                                 }
                             }
                         }
@@ -349,6 +357,13 @@ void MpvObject::handleMpvEvents()
                             if (isSeek) {
                                 // 시크 감지
                                 m_lastSeekTime = QDateTime::currentMSecsSinceEpoch();
+                            }
+                            
+                            // 끝에 가까운지 확인 (끝에서 0.1초 이내)
+                            if (m_duration > 0 && m_position > 0 && 
+                                (m_duration - m_position) < 0.1 && !m_endReached) {
+                                qDebug() << "Near end of file detected, preparing for EOF";
+                                // 미리 다음 프레임을 준비하거나 특별한 처리를 수행할 수 있음
                             }
                         }
                     }
@@ -884,28 +899,33 @@ void MpvObject::handleEndOfVideo()
                 }
             } catch (...) {}
             
-            // 2. 안전한 위치 계산
-            double endThreshold = 0.1; // 끝에서 최소 0.1초 전
-            double targetPos = 0;
+            // 2. 안전한 위치 계산 - 마지막 프레임보다 1-2프레임 앞으로 이동
+            double lastFramePos = 0;
             
-            // 실제 마지막 프레임 위치 계산 (1/fps 만큼 앞으로) - 프레임 오프셋 고려
-            double lastFramePos = m_duration - (1.0 / m_fps);
-            
-            if (exactPos > m_duration - endThreshold) {
-                // 이미 끝에 매우 가까우면 마지막 프레임 정확한 위치로 이동
-                targetPos = std::max(0.0, lastFramePos);
+            // 마지막 프레임이 아닌 마지막에서 2프레임 전으로 이동 (중요: 검은 화면 방지)
+            if (m_fps > 0) {
+                lastFramePos = m_duration - (2.0 / m_fps);
             } else {
-                // 현재 위치가 괜찮으면 그대로 유지
-                targetPos = exactPos;
+                lastFramePos = m_duration - 0.1; // fps를 알 수 없는 경우 0.1초 앞으로
             }
             
-            // 현재 위치 업데이트
-            m_position = targetPos;
-            m_lastPosition = targetPos;
+            // 마지막 시크 위치가 너무 앞이 아닌지 확인 (동영상 길이의 95% 이상)
+            lastFramePos = std::max(lastFramePos, m_duration * 0.95);
             
-            // 일시정지 상태에서 안전한 위치로 시크
-            command(QVariantList() << "seek" << targetPos << "absolute" << "exact");
-            emit positionChanged(targetPos);
+            // 안전하게 시크 (숫자 형식 문제 방지)
+            lastFramePos = std::max(0.0, lastFramePos);
+            QString posStr = QString::number(lastFramePos, 'f', 6); // 과학적 표기법 방지
+            
+            qDebug() << "End of video - seeking to safe position:" << posStr;
+            
+            // 현재 위치 업데이트
+            m_position = lastFramePos;
+            m_lastPosition = lastFramePos;
+            
+            // 일시정지 상태에서 안전한 위치로 시크 (MPV 명령 대신 속성 설정)
+            mpv_set_property_string(mpv, "pause", "yes");
+            mpv_set_property_string(mpv, "time-pos", posStr.toUtf8().constData());
+            emit positionChanged(lastFramePos);
             
             // 루프 모드가 활성화된 경우 처리
             if (m_loopEnabled) {
@@ -915,7 +935,9 @@ void MpvObject::handleEndOfVideo()
                         qDebug() << "Loop activated, going back to start";
                         
                         // 영상의 시작으로 돌아가기 (0초)
-                        command(QVariantList() << "seek" << 0 << "absolute" << "exact");
+                        QString zeroPos = "0.0";
+                        mpv_set_property_string(mpv, "pause", "yes");
+                        mpv_set_property_string(mpv, "time-pos", zeroPos.toUtf8().constData());
                         
                         // 상태 업데이트
                         m_position = 0;
@@ -1019,20 +1041,13 @@ QString MpvObject::mediaTitle() const
 // 총 프레임 수 계산 메서드 추가
 void MpvObject::updateFrameCount()
 {
-    // 1. 이미 프레임 카운트가 계산되었으면 재계산 안 함 (영상 변경 시에만 계산)
-    static bool frameCounted = false;
-    if (frameCounted && m_frameCount > 0) {
-        qDebug() << "Frame count already calculated - preventing duplicate updates";
-        return;
-    }
-    
-    // 2. 기본 검증
+    // 기본 검증
     if (!mpv || m_filename.isEmpty() || m_duration <= 0 || m_fps <= 0) {
         qDebug() << "Failed to calculate frame count: missing required data";
         return;
     }
     
-    // 3. 드래그/시크 중에는 업데이트 방지
+    // 드래그/시크 중에는 업데이트 방지
     QVariant blocked = false;
     try {
         QObject* parent = this->parent();
@@ -1053,7 +1068,7 @@ void MpvObject::updateFrameCount()
         // 무시하고 계속 진행
     }
     
-    // 4. 시크 직후에는 업데이트 방지
+    // 시크 직후에는 업데이트 방지
     qint64 now = QDateTime::currentMSecsSinceEpoch();
     if (m_lastSeekTime > 0 && (now - m_lastSeekTime) < 2000) {
         qDebug() << "Within 2 seconds after seek - skipping frame count update";
@@ -1062,40 +1077,23 @@ void MpvObject::updateFrameCount()
     
     // 실제 프레임 카운트 계산 수행
     try {
-        qDebug() << "Updating frame count...";
+        qDebug() << "Updating frame count for file:" << m_filename;
         
-        // MPV에서 직접 프레임 수 가져오기
-        QVariant frameCountVar = getProperty("estimated-frame-count");
-        QVariant exactFramesVar = getProperty("frame-count");
+        // 가장 정확한 방법: duration * fps
+        // MPV의 프레임 카운트 메타데이터는 때때로 부정확하므로 가장 안정적인 방법을 사용
+        int calculatedFrames = std::ceil(m_duration * m_fps);
         
-        // 프레임 수 계산 방식 1: MPV 내장 프레임 수
-        if (exactFramesVar.isValid() && exactFramesVar.toInt() > 0) {
-            m_frameCount = exactFramesVar.toInt();
-            qDebug() << "Exact frame count from MPV:" << m_frameCount;
-        }
-        // 프레임 수 계산 방식 2: 추정 프레임 수
-        else if (frameCountVar.isValid() && frameCountVar.toInt() > 0) {
-            m_frameCount = frameCountVar.toInt();
-            qDebug() << "Estimated frame count from MPV:" << m_frameCount;
-        } 
-        // 프레임 수 계산 방식 3: 지속 시간 * FPS
-        else {
-            m_frameCount = std::floor(m_duration * m_fps);
-            qDebug() << "Calculated frame count:" << m_frameCount 
-                     << "(duration:" << m_duration << "× fps:" << m_fps << ")";
-        }
+        // 최소 1 프레임
+        m_frameCount = std::max(1, calculatedFrames);
         
-        // 최소값은 1프레임
-        m_frameCount = std::max(1, m_frameCount);
+        qDebug() << "Frame count calculation: duration =" << m_duration 
+                 << "seconds, fps =" << m_fps 
+                 << ", calculated frames =" << m_frameCount;
         
-        // 프레임 오프셋 적용
+        // 프레임 번호 체계에 따른 표시 조정
         int displayedFrameCount = m_oneBasedFrameNumbers ? m_frameCount : m_frameCount - 1;
-        
         qDebug() << "Final frame count:" << m_frameCount 
                  << "(Displayed as: 0-" << displayedFrameCount << ")";
-        
-        // 이미 계산 완료 표시
-        frameCounted = true;
         
         // 프레임 카운트 변경 신호 발생
         emit frameCountChanged(m_frameCount);
@@ -1116,6 +1114,8 @@ void MpvObject::setOneBasedFrameNumbers(bool oneBased)
         
         // 프레임 카운트도 업데이트 (표시 방식이 변경됨)
         updateFrameCount();
+        
+        qDebug() << "Frame numbering system changed to:" << (oneBased ? "One-based (1-N)" : "Zero-based (0-N-1)");
     }
 }
 
@@ -1123,6 +1123,18 @@ void MpvObject::setOneBasedFrameNumbers(bool oneBased)
 bool MpvObject::isOneBasedFrameNumbers() const
 {
     return m_oneBasedFrameNumbers;
+}
+
+// 내부 프레임 번호에서 표시용 프레임 번호로 변환
+int MpvObject::displayFrameNumber(int internalFrame) const
+{
+    return m_oneBasedFrameNumbers ? internalFrame + 1 : internalFrame;
+}
+
+// 표시용 프레임 번호에서 내부 프레임 번호로 변환
+int MpvObject::internalFrameNumber(int displayFrame) const
+{
+    return m_oneBasedFrameNumbers ? displayFrame - 1 : displayFrame;
 }
 
 // 총 프레임 수 반환 함수

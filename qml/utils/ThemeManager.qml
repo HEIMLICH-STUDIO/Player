@@ -15,14 +15,14 @@ QtObject {
     readonly property color accentColorActive: isDarkTheme ? "#009DDB" : "#0069BC"
     
     // Background colors - neutral for professional look
-    readonly property color backgroundColor: isDarkTheme ? "#1A1A1A" : "#F0F0F0" // Darker like Nuke
-    readonly property color panelColor: isDarkTheme ? "#151515" : "#FFFFFF" // DaVinci style panels
-    readonly property color controlBgColor: isDarkTheme ? "#151515" : "#E9E9E9"
-    readonly property color darkControlColor: isDarkTheme ? "#151515" : "#D8D8D8"
-    readonly property color dialogColor: isDarkTheme ? "#151515" : "#FFFFFF"
+    readonly property color backgroundColor: isDarkTheme ? "#000000" : "#F0F0F0" // Darker like Nuke
+    readonly property color panelColor: isDarkTheme ? "#000000" : "#FFFFFF" // DaVinci style panels
+    readonly property color controlBgColor: isDarkTheme ? "#000000" : "#E9E9E9"
+    readonly property color darkControlColor: isDarkTheme ? "#000000" : "#D8D8D8"
+    readonly property color dialogColor: isDarkTheme ? "#000000" : "#FFFFFF"
     
     // Borders - subtle in professional apps
-    readonly property color borderColor: isDarkTheme ? "#3A3A3A" : "#DADADA"
+    readonly property color borderColor: isDarkTheme ? "#151515" : "#DADADA"
     
     // Text colors - clean and professional
     readonly property color textColor: isDarkTheme ? "#EFEFEF" : "#202020"
@@ -70,9 +70,9 @@ QtObject {
     readonly property color tabContentColor: isDarkTheme ? "#232323" : "#FFFFFF"
     
     // Timeline UI elements - professional video editor style
-    readonly property color timelineBackgroundColor: isDarkTheme ? "#151515" : "#E9E9E9"
-    readonly property color timelineFrameColor: isDarkTheme ? "#444444" : "#BBBBBB"
-    readonly property color timelineMajorFrameColor: isDarkTheme ? "#666666" : "#888888" 
+    readonly property color timelineBackgroundColor: isDarkTheme ? "#000000" : "#E9E9E9"
+    readonly property color timelineFrameColor: isDarkTheme ? "#1e1e1e" : "#BBBBBB"
+    readonly property color timelineMajorFrameColor: isDarkTheme ? "#252525" : "#888888" 
     readonly property color timelinePlayheadColor: "#FF453A" // Apple-inspired playhead
     readonly property color timelineActiveTrackColor: Qt.rgba(1.0, 1.0, 1.0, 0.15) // 투명한 흰색
     
