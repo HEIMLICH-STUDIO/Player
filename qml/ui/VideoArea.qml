@@ -73,38 +73,62 @@ Item {
                         console.log("VideoArea: File load completed event received");
                         metadataLoaded = false;
                         
-                        // 시크/드래그 중이 아닐 때만 메타데이터 업데이트
-                        if (!metadataUpdateBlocked) {
-                            fetchVideoMetadata();
-                            console.log("VideoArea: Metadata fetch called");
-                        } else {
-                            console.log("VideoArea: Metadata update blocked (during seek/drag)");
-                            // 지연된 메타데이터 가져오기 예약
-                            delayedMetadataTimer.restart();
-                        }
-                    });
-                    console.log("VideoArea: fileLoaded signal connection successful");
-                } else {
-                    console.warn("VideoArea: fileLoaded signal not found, using alternative method");
-                    
-                    // 대체 방법: 파일명 변경 감지
-                    if (mpvPlayer.hasOwnProperty('filenameChanged')) {
-                        mpvPlayer.filenameChanged.connect(function() {
-                            console.log("VideoArea: Filename change detected, resetting metadata");
-                            metadataLoaded = false;
-                            
-                            // 시크/드래그 중이 아닐 때만 즉시 메타데이터 업데이트
-                            if (!metadataUpdateBlocked) {
-                                // 약간의 지연 후 메타데이터 가져오기
-                                metadataFetchTimer.restart();
+                        // 파일 로드 시에만 메타데이터 가져오기 - 일시정지 상태에서만
+                        metadataUpdateBlocked = false; // 로드 직후 차단 해제
+                        Qt.callLater(function() {
+                            if (!isPlaying) {
+                                console.log("VideoArea: Initial metadata fetch called in paused state");
+                                fetchVideoMetadata();
                             } else {
-                                // 시크/드래그 중이면 더 긴 지연 후 업데이트
-                                delayedMetadataTimer.restart();
+                                console.log("VideoArea: Skipping initial metadata fetch in playing state");
                             }
                         });
-                        console.log("VideoArea: filenameChanged signal connected as alternative");
-                    }
+                    });
+                    console.log("VideoArea: fileLoaded signal connection successful");
                 }
+                
+                // 추가적인 이벤트 연결
+                mpvPlayer.frameCountChanged.connect(function(frames) {
+                    root.frames = frames;
+                    root.onTotalFramesChangedEvent(frames);
+                });
+                
+                mpvPlayer.pauseChanged.connect(function(paused) {
+                    console.log("VideoArea: Pause changed:", paused);
+                    root.isPlaying = !paused;
+                    root.onIsPlayingChangedEvent(!paused);
+                    
+                    // 일시정지 상태에서만 메타데이터 가져오기 허용
+                    if (paused && !metadataLoaded) {
+                        metadataUnblockTimer.restart(); // 일시정지 3초 후에 메타데이터 가져오기
+                    } else if (!paused) {
+                        // 재생 중에는 메타데이터 업데이트 차단
+                        metadataUpdateBlocked = true;
+                    }
+                });
+                
+                mpvPlayer.playingChanged.connect(function(playing) {
+                    console.log("VideoArea: Playing changed:", playing);
+                    root.isPlaying = playing;
+                    root.onIsPlayingChangedEvent(playing);
+                });
+                
+                mpvPlayer.filenameChanged.connect(function(filename) {
+                    console.log("VideoArea: Filename change detected -", filename);
+                    
+                    // 이전 파일과 다른 경우에만 처리
+                    if (root.filename !== filename) {
+                        root.filename = filename;
+                        root.onFileChangedEvent(filename);
+                        
+                        // 파일이 변경되면 메타데이터 로드 상태 강제 초기화
+                        metadataLoaded = false;
+                        console.log("VideoArea: New file detected, resetting metadata load state");
+                        
+                        // 파일 변경 시에는 메타데이터 가져오기를 자동으로 하지 않음
+                        // fileLoaded 이벤트에서 처리됨
+                    }
+                });
             } catch (e) {
                 console.error("VideoArea: Event connection error:", e);
             }
@@ -371,11 +395,8 @@ Item {
                         metadataLoaded = false;
                         console.log("VideoArea: New file detected, resetting metadata load state");
                         
-                        // 즉시 메타데이터 가져오기 시도
-                        fetchVideoMetadata();
-                        
-                        // 백업으로 타이머도 시작
-                        metadataFetchTimer.restart();
+                        // 파일 변경 시에는 메타데이터 가져오기를 자동으로 하지 않음
+                        // fileLoaded 이벤트에서 처리됨
                     }
                 });
                 
@@ -601,50 +622,58 @@ Item {
                 // 시크 명령 카운트 - 디버깅용
                 console.log("Seek started - frame:", targetFrame, "time:", timePos);
                 
-                // 4. MPV 강력한 시크 구현 - 모든 메서드 시도
-                // 4.1. 직접 속성 설정 (즉각 반응)
+                // 4. 항상 일시정지 상태로 변경 - 정확한 프레임 포지셔닝 위해
+                mpvPlayer.setProperty("pause", true);
+                
+                // 5. MPV 강력한 시크 구현 - 개선된 시크 방식
+                // 5.1. 직접 명령어 사용 (가장 정확함)
+                var seekCommand = "seek " + timePos.toFixed(6) + " absolute exact";
+                mpvPlayer.command(["script-message", "osd-overlay", "Seeking to frame: " + targetFrame]);
+                mpvPlayer.command(["set", "pause", "yes"]);
+                mpvPlayer.command(["seek", timePos.toFixed(6), "absolute", "exact"]);
+                
+                // 5.2. 백업: 직접 속성 설정 
                 mpvPlayer.setProperty("time-pos", timePos);
-                
-                // 4.2. 명령 인터페이스 사용 (정확도)
-                mpvPlayer.command(["seek", timePos.toString(), "absolute", "exact"]);
-                
-                // 4.3 사용 가능한 경우 내장 API 활용
-                if (typeof mpvPlayer.seekToPosition === "function") {
-                    mpvPlayer.seekToPosition(timePos);
-                }
-                
-                // 5. 일시정지 상태 확인
-                if (!isPlaying) {
-                    mpvPlayer.setProperty("pause", true);
-                }
                 
                 // 6. 내부 프레임 즉시 업데이트 (UI 응답성)
                 root.frame = targetFrame;
                 root.onFrameChangedEvent(targetFrame);
                 
-                // 7. 시크 검증 및 강화 - 시크가 완전히 적용되도록 함
-                secondSeekTimer.timePos = timePos;
-                secondSeekTimer.targetFrame = targetFrame;
-                secondSeekTimer.start();
-                
-                // 8. 최종 검증
-                finalVerifyTimer.timePos = timePos;
-                finalVerifyTimer.targetFrame = targetFrame;
-                finalVerifyTimer.start();
-                
-                // 9. 메타데이터 업데이트 차단 해제 예약
-                metadataBlockReleaseTimer.restart();
-                
-                // 10. 시크 결과 확인 - 디버그 목적
+                // 7. 강화된 시크 동기화: 프레임 불일치 방지
+                // 첫 번째 확인 - 즉시
                 Qt.callLater(function() {
-                    try {
-                        var actualPos = mpvPlayer.getProperty("time-pos");
-                        var actualFrame = Math.round(actualPos * fps);
-                        console.log("Immediate seek verification: requested=", targetFrame, "actual=", actualFrame);
-                    } catch (e) {
-                        console.error("Seek result verification error:", e);
+                    if (mpvPlayer) {
+                        try {
+                            var actualPos = mpvPlayer.getProperty("time-pos");
+                            var actualFrame = Math.round(actualPos * fps);
+                            console.log("Initial seek verification: requested=", targetFrame, "actual=", actualFrame);
+                            
+                            // 불일치 감지 시 즉시 재보정
+                            if (Math.abs(actualFrame - targetFrame) > 0) {
+                                console.log("Frame mismatch detected, immediate correction");
+                                mpvPlayer.command(["seek", timePos.toFixed(6), "absolute", "exact"]);
+                                mpvPlayer.setProperty("pause", true);
+                            }
+                        } catch (e) {
+                            console.error("Seek verification error:", e);
+                        }
                     }
                 });
+                
+                // 8. 강화된 중간 확인 타이머 - 더 정확한 시크를 위해
+                secondSeekTimer.timePos = timePos;
+                secondSeekTimer.targetFrame = targetFrame;
+                secondSeekTimer.interval = 100; // 더 빠른 응답
+                secondSeekTimer.start();
+                
+                // 9. 최종 검증 - 3중 확인
+                finalVerifyTimer.timePos = timePos;
+                finalVerifyTimer.targetFrame = targetFrame;
+                finalVerifyTimer.interval = 200; // 더 빠른 응답
+                finalVerifyTimer.start();
+                
+                // 10. 메타데이터 업데이트 차단 해제 예약
+                metadataBlockReleaseTimer.restart();
                 
                 return true;
             } catch (e) {
@@ -672,27 +701,27 @@ Item {
         onTriggered: {
             if (mpvPlayer) {
                 try {
-                    // 1. 명령어로 한 번 더 정확한 위치 지정
-                    mpvPlayer.command(["seek", timePos.toString(), "absolute", "exact"]);
+                    // 명령어로 한 번 더 정확한 위치 지정
+                    mpvPlayer.command(["seek", timePos.toFixed(6), "absolute", "exact"]);
+                    mpvPlayer.setProperty("pause", true);
                     
-                    // 2. 일시정지 상태 유지 (일시정지 모드일 때)
-                    if (!isPlaying) {
-                        mpvPlayer.setProperty("pause", true);
-                    }
-                    
-                    // 3. 현재 프레임 상태 재확인 및 시그널 발생
+                    // 현재 프레임 상태 재확인 및 시그널 발생
                     var actualPos = mpvPlayer.getProperty("time-pos");
                     if (actualPos !== undefined && actualPos !== null) {
                         var actualFrame = Math.round(actualPos * fps);
-                        if (Math.abs(actualFrame - targetFrame) > 1) {
-                            console.log("Seek verification: Frame mismatch - current:", actualFrame, "requested:", targetFrame);
-                            
-                            // 다시 시크 시도
-                            mpvPlayer.setProperty("time-pos", timePos);
+                        console.log("Second verification: requested=", targetFrame, "actual=", actualFrame);
+                        
+                        if (Math.abs(actualFrame - targetFrame) > 0) {
+                            console.log("Frame still mismatched, performing second correction");
+                            // 세 번째 시도: 더 정확한 시간으로 시크
+                            var correctedTimePos = targetFrame / fps;
+                            mpvPlayer.command(["seek", correctedTimePos.toFixed(6), "absolute", "exact"]);
+                            mpvPlayer.setProperty("pause", true);
+                            mpvPlayer.setProperty("time-pos", correctedTimePos);
                             
                             // UI 업데이트
-                            root.frame = actualFrame;
-                            root.onFrameChangedEvent(actualFrame);
+                            root.frame = targetFrame;
+                            root.onFrameChangedEvent(targetFrame);
                         }
                     }
                 } catch (e) {
@@ -714,47 +743,39 @@ Item {
             if (mpvPlayer) {
                 try {
                     // 최종 상태 검증
+                    mpvPlayer.setProperty("pause", true);
                     var actualPos = mpvPlayer.getProperty("time-pos");
                     if (actualPos !== undefined && actualPos !== null) {
                         var actualFrame = Math.round(actualPos * fps);
+                        console.log("Verification: MPV frame=", actualFrame, "_internalFrame=", targetFrame);
                         
                         // 여전히 불일치가 있는지 확인
-                        if (Math.abs(actualFrame - targetFrame) > 1) {
-                            console.log("Final verification: Frame mismatch detected - current:", actualFrame, "target:", targetFrame);
+                        if (Math.abs(actualFrame - targetFrame) > 0) {
+                            console.log("Frame mismatch detected - synchronizing");
                             
-                            // 일시정지 확인 - 일시정지 상태에서만 정확한 프레임 맞추기
-                            if (!isPlaying) {
-                                mpvPlayer.setProperty("pause", true);
-                                
-                                // 마지막 시도 - 3중 시크 명령 송출
-                                // 1. 속성 직접 설정
-                                mpvPlayer.setProperty("time-pos", timePos);
-                                
-                                // 2. 명령 인터페이스 사용
-                                mpvPlayer.command(["seek", timePos.toString(), "absolute", "exact"]);
-                                
-                                // 3. 최우선 위치로 시크 (없으면 무시)
-                                if (typeof mpvPlayer.seekToPosition === "function") {
-                                    mpvPlayer.seekToPosition(timePos);
-                                }
-                                
-                                // 4. 1회 추가 검증
-                                Qt.callLater(function() {
-                                    try {
-                                        var finalPos = mpvPlayer.getProperty("time-pos");
-                                        var finalFrame = Math.round(finalPos * fps);
-                                        console.log("Final verification result: target=", targetFrame, "final=", finalFrame);
-                                        
-                                        // UI 업데이트
-                                        root.frame = finalFrame;
-                                        root.onFrameChangedEvent(finalFrame);
-                                    } catch (e) {
-                                        console.error("Final verification error:", e);
-                                    }
-                                });
-                            }
+                            // 최종 동기화 시도
+                            var finalTimePos = targetFrame / fps;
+                            
+                            // 1. 직접 속성 설정
+                            mpvPlayer.setProperty("time-pos", finalTimePos);
+                            mpvPlayer.setProperty("pause", true);
+                            
+                            // 2. 명령 인터페이스 사용 (3중 동기화)
+                            mpvPlayer.command(["seek", finalTimePos.toFixed(6), "absolute", "exact"]);
+                            
+                            // 3. 마지막 프레임 상태 재설정 (동기화)
+                            root.frame = targetFrame;
+                            root.onFrameChangedEvent(targetFrame);
+                            
+                            // MPV가 정확한 프레임을 표시할 시간을 주기
+                            Qt.callLater(function() {
+                                // 우선 내부 상태 확인
+                                console.log("Frame seek final confirmation complete:", targetFrame);
+                                console.log("Stabilization period ended");
+                            });
                         } else {
                             console.log("Frame seek final confirmation complete:", targetFrame);
+                            console.log("Stabilization period ended");
                         }
                     }
                 } catch (e) {
@@ -780,24 +801,54 @@ Item {
         }
     }
     
-    // 지연된 메타데이터 가져오기 타이머
+    // Timers for metadata handling
     Timer {
         id: delayedMetadataTimer
-        interval: 2000
+        interval: 500
         repeat: false
+        running: false
         onTriggered: {
-            if (!metadataUpdateBlocked && !metadataLoaded) {
-                console.log("Delayed metadata fetch executed (one time only)");
+            // 지연된 메타데이터 로드 - 파일 로드 직후 처음 한 번만 사용
+            if (!metadataLoaded) {
+                console.log("Delayed metadata fetch triggered");
                 fetchVideoMetadata();
-                // 이후에는 메타데이터 로드 상태를 true로 유지
-                metadataLoaded = true;
-            } else {
-                console.log("Metadata already loaded or blocked - skipping metadata update");
             }
         }
     }
     
-    // 메타데이터 업데이트 차단 시간 확인 타이머 - 안전 장치
+    // 메타데이터 가져오기 타이머 - 백업용 (fileLoaded 이벤트 대체용)
+    Timer {
+        id: metadataFetchTimer
+        interval: 1000
+        repeat: false
+        running: false
+        onTriggered: {
+            if (!metadataLoaded) {
+                console.log("Backup metadata fetch timer triggered");
+                fetchVideoMetadata();
+            }
+        }
+    }
+    
+    // 메타데이터 차단 해제 타이머 (일시정지 후 3초로 증가)
+    Timer {
+        id: metadataUnblockTimer
+        interval: 3000
+        repeat: false
+        running: false
+        onTriggered: {
+            if (!isPlaying) {
+                console.log("Playback stopped for 3 seconds: Metadata update block released");
+                metadataUpdateBlocked = false;
+                
+                // 메타데이터가 아직 로드되지 않았으면 로드 (첫 파일 로드 시에만)
+                if (!metadataLoaded) {
+                    fetchVideoMetadata();
+                }
+            }
+        }
+    }
+    
     Timer {
         id: metadataBlockTimeoutTimer
         interval: 10000  // 10초 후 강제 해제 (안전 장치)
@@ -822,35 +873,17 @@ Item {
     onIsPlayingChanged: {
         // 재생 중에는 메타데이터 업데이트 차단 (성능 향상)
         if (isPlaying) {
-            if (!metadataUpdateBlocked) {
-                console.log("Playback started: Metadata update block activated");
-                metadataUpdateBlocked = true;
-            }
+            console.log("Playback started: Metadata update block activated");
+            metadataUpdateBlocked = true;
+            
+            // 모든 메타데이터 관련 타이머 중지
+            if (metadataFetchTimer.running) metadataFetchTimer.stop();
+            if (delayedMetadataTimer.running) delayedMetadataTimer.stop();
+            if (metadataUnblockTimer.running) metadataUnblockTimer.stop();
         } else {
             // 정지 상태에서 일정 시간 후 메타데이터 업데이트 차단 해제
             // (사용자가 일시정지 버튼을 누른 경우에만)
             metadataUnblockTimer.restart();
-        }
-    }
-    
-    // 메타데이터 차단 해제 타이머 (일시정지 후 3초로 증가)
-    Timer {
-        id: metadataUnblockTimer
-        interval: 3000  // 3초로 증가 (더 안정적인 렌더링을 위해)
-        repeat: false
-        running: false
-        
-        onTriggered: {
-            if (!isPlaying && metadataUpdateBlocked) {
-                console.log("After 3 seconds pause: Metadata update block released");
-                metadataUpdateBlocked = false;
-                
-                // 필요한 경우 메타데이터 새로고침 (이미 로드된 경우 스킵)
-                if (!metadataLoaded) {
-                    console.log("Required metadata load started (for new video)");
-                    fetchVideoMetadata();
-                }
-            }
         }
     }
     
@@ -921,12 +954,24 @@ Item {
     function fetchVideoMetadata() {
         // 이미 메타데이터가 로드되었으면 스킵
         if (metadataLoaded) {
-            console.log("Metadata already loaded. Preventing duplicate loading");
+            console.log("ControlBar: Metadata already loaded, preventing duplicate loading");
             return;
         }
         
         if (!mpvPlayer) {
             console.log("Cannot fetch metadata: mpvPlayer is null");
+            return;
+        }
+        
+        // 메타데이터 업데이트가 차단된 상태면 스킵
+        if (metadataUpdateBlocked) {
+            console.log("Metadata update blocked - not fetching metadata");
+            return;
+        }
+        
+        // 재생 중이면 메타데이터 가져오기 취소
+        if (isPlaying) {
+            console.log("Video is playing - skipping metadata fetch");
             return;
         }
         
@@ -1038,15 +1083,12 @@ Item {
             // Emit signal that metadata changed
             root.onMetadataChanged();
             
-            // 중복 로드 방지를 위해 추가 메타데이터 갱신 타이머 미사용
-            // Schedule another metadata refresh after a short delay for reliability
-            // Sometimes metadata isn't fully available on the first attempt
-            if (!videoCodec) {
-                console.log("Codec information not found, trying one more time");
-                metadataLoaded = false; // 실패한 경우만 한 번 더 시도
-                Qt.callLater(function() {
-                    metadataRetryTimer.start();
-                });
+            // 메타데이터 로드 완료 후 더 이상 메타데이터 타이머 사용 안함
+            if (metadataFetchTimer.running) {
+                metadataFetchTimer.stop();
+            }
+            if (delayedMetadataTimer.running) {
+                delayedMetadataTimer.stop();
             }
         } catch (e) {
             console.error("Error fetching metadata:", e);
@@ -1173,36 +1215,6 @@ Item {
         } catch (e) {
             console.error("Error getting creation date:", e);
             return "";
-        }
-    }
-    
-    // Timer to fetch metadata after file is loaded
-    Timer {
-        id: metadataFetchTimer
-        interval: 300 // 300ms로 단축 (파일 로드 후 메타데이터 가져오기)
-        repeat: false
-        onTriggered: {
-            console.log("Metadata fetch timer executed");
-            fetchVideoMetadata();
-            
-            // 첫 번째 시도가 실패한 경우 추가 시도
-            if (!metadataLoaded) {
-                Qt.callLater(function() {
-                    console.log("Additional metadata timer attempt");
-                    fetchVideoMetadata();
-                });
-            }
-        }
-    }
-    
-    // Additional retry timer for metadata
-    Timer {
-        id: metadataRetryTimer
-        interval: 1000  // 1초로 단축
-        repeat: false
-        onTriggered: {
-            console.log("Metadata retry timer executed");
-            fetchVideoMetadata();
         }
     }
 }

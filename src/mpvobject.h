@@ -28,6 +28,15 @@ class MpvObject : public QQuickFramebufferObject
     Q_PROPERTY(QString videoCodec READ videoCodec NOTIFY videoCodecChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat NOTIFY videoFormatChanged)
     Q_PROPERTY(QString videoResolution READ videoResolution NOTIFY videoResolutionChanged)
+    
+    // 타임코드 관련 프로퍼티 추가
+    Q_PROPERTY(QString timecode READ timecode NOTIFY timecodeChanged)
+    Q_PROPERTY(int timecodeFormat READ timecodeFormat WRITE setTimecodeFormat NOTIFY timecodeFormatChanged)
+    Q_PROPERTY(bool useEmbeddedTimecode READ useEmbeddedTimecode WRITE setUseEmbeddedTimecode NOTIFY useEmbeddedTimecodeChanged)
+    Q_PROPERTY(QString embeddedTimecode READ embeddedTimecode NOTIFY embeddedTimecodeChanged)
+    Q_PROPERTY(int timecodeOffset READ timecodeOffset WRITE setTimecodeOffset NOTIFY timecodeOffsetChanged)
+    Q_PROPERTY(QString customTimecodePattern READ customTimecodePattern WRITE setCustomTimecodePattern NOTIFY customTimecodePatternChanged)
+    Q_PROPERTY(int timecodeSource READ timecodeSource WRITE setTimecodeSource NOTIFY timecodeSourceChanged)
 
     mpv_handle *mpv;
     mpv_render_context *mpv_context;
@@ -51,6 +60,15 @@ class MpvObject : public QQuickFramebufferObject
     QString m_videoFormat = "";
     QString m_videoResolution = "";
     
+    // 타임코드 관련 변수
+    QString m_timecode = "00:00:00:00";
+    int m_timecodeFormat = 0; // 0=SMPTE Non-Drop, 1=SMPTE Drop-Frame, 2=HH:MM:SS.MS, 3=Frames Only
+    bool m_useEmbeddedTimecode = false;
+    QString m_embeddedTimecode = "";
+    int m_timecodeOffset = 0;
+    QString m_customTimecodePattern = "%H:%M:%S.%f";
+    int m_timecodeSource = 0; // 0=Calculate, 1=Embedded SMPTE, 2=File Metadata, 3=Reel Name
+    
     // 성능 모니터링 관련 변수
     QDateTime m_lastPerformanceCheck;
     bool m_performanceOptimizationApplied = false;
@@ -62,6 +80,7 @@ class MpvObject : public QQuickFramebufferObject
     QTimer *m_stateChangeTimer = nullptr;
     QTimer *m_performanceTimer = nullptr;
     QTimer *m_metadataTimer = nullptr;  // 메타데이터 업데이트 타이머
+    QTimer *m_timecodeTimer = nullptr;  // 타임코드 업데이트 타이머
 
 public:
     explicit MpvObject(QQuickItem * parent = 0);
@@ -85,6 +104,24 @@ public:
     QString videoCodec() const;
     QString videoFormat() const;
     QString videoResolution() const;
+    
+    // 타임코드 관련 접근자/설정자
+    QString timecode() const;
+    int timecodeFormat() const;
+    void setTimecodeFormat(int format);
+    bool useEmbeddedTimecode() const;
+    void setUseEmbeddedTimecode(bool use);
+    QString embeddedTimecode() const;
+    int timecodeOffset() const;
+    void setTimecodeOffset(int offset);
+    QString customTimecodePattern() const;
+    void setCustomTimecodePattern(const QString& pattern);
+    int timecodeSource() const;
+    void setTimecodeSource(int source);
+    
+    // 타임코드 유틸리티 메서드
+    Q_INVOKABLE QString frameToTimecode(int frame, int format = -1, const QString& customPattern = "") const;
+    Q_INVOKABLE int timecodeToFrame(const QString& tc) const;
 
 public slots:
     void play();
@@ -103,28 +140,36 @@ public slots:
     void updateFrameCount();
     void updateVideoMetadata();  // 메타데이터 업데이트 함수 추가
     void applyVideoFilters(const QStringList& filters);
+    void updateTimecode();      // 타임코드 업데이트 함수
+    void fetchEmbeddedTimecode(); // 내장 타임코드 추출 함수
 
 signals:
-    void pauseChanged(bool);
-    void playingChanged(bool);
-    void positionChanged(double);
-    void durationChanged(double);
-    void mediaTitleChanged(const QString&);
-    void filenameChanged(const QString&);
+    void positionChanged(double position);
+    void durationChanged(double duration);
+    void fpsChanged(double fps);
+    void mediaTitleChanged(const QString &mediaTitle);
+    void filenameChanged(const QString &filename);
+    void pauseChanged(bool paused);
+    void playingChanged(bool playing);
+    void frameCountChanged(int count);
     void videoReconfig();
+    void fileLoaded();
     void seekRequested(int frame);
-    void fpsChanged(double);
-    void endReachedChanged(bool);
-    void loopChanged(bool);
-    void frameCountChanged(int);
-    void oneBasedFrameNumbersChanged(bool);
-    
-    // 코덱 정보 변경 시그널 추가
-    void videoCodecChanged(const QString&);
-    void videoFormatChanged(const QString&);
-    void videoResolutionChanged(const QString&);
-    void videoMetadataChanged();  // 모든 메타데이터가 업데이트되었을 때 발생하는 시그널
-    void fileLoaded();  // 파일이 완전히 로드되었을 때 발생하는 시그널
+    void videoCodecChanged(const QString &codec);
+    void videoFormatChanged(const QString &format);
+    void videoResolutionChanged(const QString &resolution);
+    void videoMetadataChanged();
+    void timecodeChanged(const QString &timecode);
+    void timecodeFormatChanged(int format);
+    void useEmbeddedTimecodeChanged(bool use);
+    void embeddedTimecodeChanged(const QString &timecode);
+    void timecodeOffsetChanged(int offset);
+    void customTimecodePatternChanged(const QString &pattern);
+    void timecodeSourceChanged(int source);
+    void loopChanged(bool enabled);
+    void oneBasedFrameNumbersChanged(bool oneBased);
+    void endReached();  // 영상 종료 시 발생하는 시그널
+    void endReachedChanged(bool reached);  // endReached 속성 변경 시그널
 };
 
 #endif // MPVOBJECT_H 

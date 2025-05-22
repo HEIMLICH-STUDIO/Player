@@ -17,6 +17,11 @@ Rectangle {
     property real fps: 24.0
     property string currentFile: ""
     property string timecode: "00:00:00:00"
+  property int timecodeFormat: 0 // 0: SMPTE Non-Drop, 1: SMPTE Drop-Frame, 2: HH:MM:SS.MS, 3: Frames Only, 4: Custom
+    property var mpvObject: null  // mpv 객체 참조
+    property bool useEmbeddedTimecode: false
+    property int timecodeOffset: 0
+    property string customTimecodePattern: "%H:%M:%S.%f"
     
     // 상단 경계선
     Rectangle {
@@ -52,33 +57,58 @@ Rectangle {
         
         // 타임코드
         Text {
-            text: "TC: " + timecode
+            text: formatTimecodeDisplay()
             color: ThemeManager.textColor
             font.family: ThemeManager.monoFont
             font.pixelSize: ThemeManager.smallFontSize
         }
     }
     
-    // 타임코드 계산 함수
-    function updateTimecode() {
-        if (totalFrames <= 0 || currentFrame < 0) {
-            timecode = "00:00:00:00";
-            return;
+    // 타임코드 표시 형식 결정 함수
+    function formatTimecodeDisplay() {
+        if (!timecode || timecode.length === 0) {
+            return "TC: 00:00:00:00";
         }
         
-        // 프레임에서 시간 계산
-        var seconds = currentFrame / fps;
-        var h = Math.floor(seconds / 3600);
-        var m = Math.floor((seconds % 3600) / 60);
-        var s = Math.floor(seconds % 60);
-        var f = Math.floor((currentFrame % fps));
+        // 특수 형식 표시
+        switch (timecodeFormat) {
+            case 0: // SMPTE Non-Drop (HH:MM:SS:FF)
+                return "TC: " + timecode;
+            case 1: // SMPTE Drop-Frame (HH:MM:SS;FF)
+                return "TC: " + timecode;
+            case 2: // 밀리초 (HH:MM:SS.MS)
+                return "TC: " + timecode;
+            case 3: // 프레임 번호만
+                return "Frame: " + currentFrame;
+            case 4: // 커스텀 형식
+                return "TC: " + timecode;
+            default:
+                return "TC: " + timecode;
+        }
+    }
+    
+    // mpv 객체로부터 타임코드 업데이트 수신
+    Connections {
+        target: mpvObject
         
-        // 포맷팅
-        var hh = h.toString().padStart(2, '0');
-        var mm = m.toString().padStart(2, '0');
-        var ss = s.toString().padStart(2, '0');
-        var ff = f.toString().padStart(2, '0');
+        // 타임코드 변경 이벤트 처리
+        function onTimecodeChanged(newTimecode) {
+            timecode = newTimecode;
+        }
         
-        timecode = hh + ":" + mm + ":" + ss + ":" + ff;
+        // 타임코드 형식 변경 이벤트 처리
+        function onTimecodeFormatChanged(format) {
+            timecodeFormat = format;
+        }
+        
+        // 타임코드 오프셋 변경 이벤트 처리
+        function onTimecodeOffsetChanged(offset) {
+            timecodeOffset = offset;
+        }
+        
+        // 커스텀 타임코드 패턴 변경 이벤트 처리
+        function onCustomTimecodePatternChanged(pattern) {
+            customTimecodePattern = pattern;
+        }
     }
 }

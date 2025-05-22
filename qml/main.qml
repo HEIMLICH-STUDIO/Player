@@ -182,6 +182,25 @@ ApplicationWindow {
                     totalFrames: root.totalFrames
                     fps: root.fps
                     currentTimecode: root.currentTimecode
+                    
+                    // Add event connections for seeking
+                    onFrameChangedEvent: function(frame) {
+                        // 중요: VideoArea에서 프레임 변경 시 메인 윈도우 업데이트
+                        root.currentFrame = frame;
+                        
+                        // 컨트롤바에도 직접 알림 (양방향 동기화 보장)
+                        if (controlBar && controlBar.currentFrame !== frame) {
+                            controlBar.currentFrame = frame;
+                        }
+                    }
+                    
+                    onFpsChangedEvent: function(fps) {
+                        root.fps = fps;
+                    }
+                    
+                    onTotalFramesChangedEvent: function(frames) {
+                        root.totalFrames = frames;
+                    }
                 }
             }
             
@@ -207,6 +226,60 @@ ApplicationWindow {
                     anchors.fill: parent
                     mpvPlayer: videoArea.mpvPlayer
                     fps: root.fps
+                }
+            }
+        }
+        
+        // Control bar at bottom
+        ControlBar {
+            id: controlBar
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            
+            // Connect properties
+            mpvObject: videoArea.mpvPlayer
+            currentFrame: root.currentFrame
+            totalFrames: root.totalFrames
+            fps: root.fps
+            isPlaying: videoArea.isPlaying
+            mpvSupported: root.mpvSupported
+            
+            // Highlight when settings panel is open
+            settingsPanelOpen: settingsPanelVisible
+            
+            // Connect signals
+            onOpenFileRequested: fileDialog.open()
+            onToggleSettingsPanelRequested: toggleSettingsPanel()
+            onToggleFullscreenRequested: toggleFullscreen()
+            
+            // Frame navigation handlers
+            onFrameBackwardRequested: function(frames) {
+                videoArea.stepBackward(frames);
+            }
+            
+            onFrameForwardRequested: function(frames) {
+                videoArea.stepForward(frames);
+            }
+            
+            // Handle seek requests - 중요: 클릭 시크 처리를 위한 핵심 연결부
+            onSeekToFrameRequested: function(frame) {
+                console.log("Main: Timeline seek request -", frame);
+                
+                // 컨트롤바에서 시크 요청이 왔을 때 비디오 영역에 직접 전달
+                if (videoArea) {
+                    // VideoArea의 seekToFrame 함수 호출
+                    videoArea.seekToFrame(frame);
+                    
+                    // 메인 윈도우 currentFrame도 즉시 업데이트 (UI 응답성)
+                    root.currentFrame = frame;
+                }
+            }
+            
+            // Toggle play/pause
+            onPlayPauseRequested: {
+                if (videoArea) {
+                    videoArea.playPause();
                 }
             }
         }

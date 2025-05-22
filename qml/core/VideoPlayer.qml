@@ -411,6 +411,7 @@ Item {
             totalFrames: root.totalFrames
             fps: root.fps
             currentFile: root.currentFile
+            mpvObject: getMpvObject()  // mpv 객체 참조 전달
         }
     }
     

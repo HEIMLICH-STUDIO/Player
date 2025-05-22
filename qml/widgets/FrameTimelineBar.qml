@@ -126,12 +126,22 @@ Item {
             mpvObject.setProperty("time-pos", pos);
             
             // 2. 일시 정지 상태 확인
-            if (!isPlaying) {
-                mpvObject.setProperty("pause", true);
+            mpvObject.setProperty("pause", true);
+            
+            // 3. 강화된 시크 명령 (정확한 프레임 이동을 위해)
+            mpvObject.command(["seek", pos.toFixed(6), "absolute", "exact"]);
+            
+            // 4. 부모에 있는 seekToFrame 직접 호출 (클릭에 대한 처리 개선)
+            if (mpvObject.parentItem && typeof mpvObject.parentItem.seekToFrame === "function") {
+                mpvObject.parentItem.seekToFrame(frame);
             }
             
-            // 3. 내부 프레임 업데이트
+            // 5. 내부 프레임 업데이트
             _internalFrame = frame;
+            currentFrame = frame;
+            
+            // 6. 시그널 발생 (2단계 보장)
+            seekRequested(frame);
             
             return true;
         } catch (e) {
@@ -485,12 +495,27 @@ Item {
                 if (mpvObject) {
                     seekInProgress = true;
                     try {
-                        // 통합된 MPV 시크 함수 사용 (개선)
+                        // 클릭 시크 개선 - 더 강력한 시크 방식 적용
+                        // 1. 내부 프레임 즉시 업데이트
+                        _internalFrame = dragFrame;
+                        currentFrame = dragFrame;
+                        
+                        // 2. 통합된 MPV 시크 함수 사용 (개선)
                         performMpvSeek(dragFrame);
                         
-                        // 시그널 발생
+                        // 3. 시그널 강화 - 여러 경로로 시그널 발생
                         console.log("Click seek:", dragFrame);
-                        _internalFrame = dragFrame;
+                        
+                        // 4. VideoArea 컴포넌트의 seekToFrame 함수 직접 호출 시도
+                        if (mpvObject && mpvObject.parentItem && 
+                            typeof mpvObject.parentItem.seekToFrame === "function") {
+                            mpvObject.parentItem.seekToFrame(dragFrame);
+                        }
+                        
+                        // 5. 중요: 클릭 시크를 위한 강화된 검증 즉시 시작
+                        Qt.callLater(function() {
+                            verifySeekTimer.restart();
+                        });
                     } catch (e) {
                         console.error("Click seek error:", e);
                         seekInProgress = false;
