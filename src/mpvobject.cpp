@@ -6,6 +6,7 @@
 #include <QtGui/QOpenGLFunctions>
 #include <QDebug>
 #include <QDateTime>
+#include <QElapsedTimer>
 
 namespace {
 void on_mpv_events(void *ctx)
@@ -199,28 +200,42 @@ MpvObject::MpvObject(QQuickItem * parent)
     mpv_observe_property(mpv, 0, "estimated-vf-fps", MPV_FORMAT_DOUBLE);
     mpv_observe_property(mpv, 0, "eof-reached", MPV_FORMAT_FLAG);
     
-    // 이벤트 콜백 설정
+    // 코덱 정보 감시 추가
+    mpv_observe_property(mpv, 0, "video-codec", MPV_FORMAT_STRING);
+    mpv_observe_property(mpv, 0, "video-format", MPV_FORMAT_STRING);
+    mpv_observe_property(mpv, 0, "width", MPV_FORMAT_INT64);
+    mpv_observe_property(mpv, 0, "height", MPV_FORMAT_INT64);
+    
+    // Log available properties
+    qDebug() << "MPV initialized, setting up event handlers";
     mpv_set_wakeup_callback(mpv, on_mpv_events, this);
     
     if (mpv_initialize(mpv) < 0) {
         qCritical() << "Failed to initialize MPV";
-        throw std::runtime_error("Could not initialize mpv context");
+        throw std::runtime_error("Failed to initialize mpv");
     }
     
-    // qDebug() << "MpvObject constructor completed successfully";
-    
-    // 상태 변경 타이머
+    // 타이머 초기화
     m_stateChangeTimer = new QTimer(this);
     m_stateChangeTimer->setSingleShot(true);
-    m_stateChangeTimer->setInterval(50); // 적절한 지연
+    m_stateChangeTimer->setInterval(50);
     connect(m_stateChangeTimer, &QTimer::timeout, this, &MpvObject::processStateChange);
     
-    // 성능 모니터링 설정
     m_performanceTimer = new QTimer(this);
-    m_performanceTimer->setInterval(1000); // 1초마다 체크
-    m_performanceTimer->setSingleShot(false);
+    m_performanceTimer->setInterval(5000); // 5초마다 성능 확인
     connect(m_performanceTimer, &QTimer::timeout, this, &MpvObject::checkPerformance);
     m_performanceTimer->start();
+    
+    // 메타데이터 업데이트 타이머 추가
+    m_metadataTimer = new QTimer(this);
+    m_metadataTimer->setInterval(2000); // 2초마다 메타데이터 업데이트
+    connect(m_metadataTimer, &QTimer::timeout, this, &MpvObject::updateVideoMetadata);
+    // m_metadataTimer->start(); // 주기적인 메타데이터 업데이트 비활성화
+    
+    // UI를 항상 지연 없이 업데이트
+    setFlag(ItemHasContents, true);
+    
+    qDebug() << "MpvObject constructor completed successfully";
 }
 
 MpvObject::~MpvObject()
@@ -327,12 +342,27 @@ void MpvObject::handleMpvEvents()
                     if (!prop->data) {
                         qWarning() << "Invalid duration property data";
                         continue;
-            }
+                    }
                 double duration = *(double *)prop->data;
                 m_duration = duration;
                     
-                    // 총 프레임 수 업데이트 
-                    updateFrameCount();
+                    // 파일 로드 시에만 프레임 수 업데이트 - 시크 중에는 하지 않음
+                    // 현재 시간과 마지막 시크 시간을 비교하여 파일 로드 중인지 확인
+                    qint64 now = QDateTime::currentMSecsSinceEpoch();
+                    
+                    // 새 파일 로드 시에만 프레임 카운트 업데이트 허용
+                    // 1. 마지막 시크로부터 충분한 시간이 지났거나 시크 이력이 없어야 함
+                    // 2. 현재 위치가 영상 시작 부분이어야 함 (처음 로드 시)
+                    // 3. 아직 프레임 카운트가 계산되지 않았거나 0이어야 함
+                    if ((m_lastSeekTime == 0 || (now - m_lastSeekTime) > 5000) && 
+                        m_position < 0.5 && 
+                        (m_frameCount <= 0 || m_fps <= 0)) {
+                        
+                        qDebug() << "Duration change detected - scheduling frame count calculation for new file load";
+                        QTimer::singleShot(500, this, &MpvObject::updateFrameCount);
+                    } else {
+                        qDebug() << "Duration change detected - skipping frame count calculation (playback/seek in progress or already calculated)";
+                    }
                     
                 emit durationChanged(duration);
             }
@@ -357,6 +387,8 @@ void MpvObject::handleMpvEvents()
                     m_endReached = false;
                     m_position = 0;
                     m_lastPosition = 0;
+                    m_lastSeekTime = 0; // 시크 타임스탬프도 초기화
+                    m_frameCount = 0;   // 프레임 카운트도 초기화 (새 파일이므로)
                     
                 emit filenameChanged(m_filename);
                     emit endReachedChanged(false);
@@ -366,8 +398,9 @@ void MpvObject::handleMpvEvents()
                         command(QVariantList() << "set_property" << "pause" << true);
                     }
                     
-                    // 파일 로드 후 0.5초 뒤 프레임 개수를 확인하는 타이머
-                    QTimer::singleShot(500, this, &MpvObject::updateFrameCount);
+                    // 파일명이 변경되면 파일 로드 이벤트가 곧 발생할 것이므로
+                    // 여기서는 프레임 카운트 계산을 하지 않음
+                    qDebug() << "New filename detected - waiting for file load event (skipping frame count calculation here)";
                 }
                 else if (strcmp(prop->name, "estimated-vf-fps") == 0 && prop->format == MPV_FORMAT_DOUBLE) {
                     if (!prop->data) {
@@ -379,8 +412,18 @@ void MpvObject::handleMpvEvents()
                         // FPS 값을 소수점 3자리로 고정
                         m_fps = std::round(fps * 1000.0) / 1000.0;
                         
-                        // FPS 변경 시 총 프레임 수도 업데이트
-                        updateFrameCount();
+                        // FPS 변경 시 총 프레임 수도 업데이트 - 하지만 시크 중에는 방지
+                        // 파일 로드 중에만 허용 (프레임 카운트가 아직 계산되지 않은 경우만)
+                        qint64 now = QDateTime::currentMSecsSinceEpoch();
+                        if ((m_lastSeekTime == 0 || (now - m_lastSeekTime) > 5000) && 
+                            m_position < 0.5 && 
+                            m_frameCount <= 0) {
+                                
+                            qDebug() << "FPS change detected - scheduling frame count calculation for new file load";
+                            QTimer::singleShot(500, this, &MpvObject::updateFrameCount);
+                        } else {
+                            qDebug() << "FPS change detected - skipping frame count calculation (playback/seek in progress or already calculated)";
+                        }
                         
                         emit fpsChanged(m_fps);
                     }
@@ -398,13 +441,56 @@ void MpvObject::handleMpvEvents()
                         qDebug() << "EOF signal detected from MPV";
                         handleEndOfVideo();
                     }
-            }
+                }
+                // 비디오 코덱 정보 처리
+                else if (strcmp(prop->name, "video-codec") == 0 && prop->format == MPV_FORMAT_STRING) {
+                    if (!prop->data) {
+                        qWarning() << "Invalid video-codec property data";
+                        continue;
+                    }
+                    char *codec = *(char **)prop->data;
+                    if (codec) {
+                        QString newCodec = QString::fromUtf8(codec);
+                        if (m_videoCodec != newCodec) {
+                            m_videoCodec = newCodec;
+                            emit videoCodecChanged(m_videoCodec);
+                            qDebug() << "Video codec changed:" << m_videoCodec;
+                        }
+                    }
+                }
+                // 비디오 포맷 정보 처리
+                else if (strcmp(prop->name, "video-format") == 0 && prop->format == MPV_FORMAT_STRING) {
+                    if (!prop->data) {
+                        qWarning() << "Invalid video-format property data";
+                        continue;
+                    }
+                    char *format = *(char **)prop->data;
+                    if (format) {
+                        QString newFormat = QString::fromUtf8(format);
+                        if (m_videoFormat != newFormat) {
+                            m_videoFormat = newFormat;
+                            emit videoFormatChanged(m_videoFormat);
+                            qDebug() << "Video format changed:" << m_videoFormat;
+                        }
+                    }
+                }
+                // 비디오 너비 또는 높이 변경 시 해상도 업데이트
+                else if ((strcmp(prop->name, "width") == 0 || strcmp(prop->name, "height") == 0) && prop->format == MPV_FORMAT_INT64) {
+                    // 너비나 높이 중 하나만 변경되었을 때도 전체 해상도를 업데이트하기 위해
+                    // updateVideoMetadata 호출 (다음 프레임에 수행)
+                    QTimer::singleShot(0, this, &MpvObject::updateVideoMetadata);
+                }
             break;
         }
         case MPV_EVENT_VIDEO_RECONFIG:
             emit videoReconfig();
                 // 비디오 설정이 변경되면 총 프레임 수도 다시 계산
-                QTimer::singleShot(300, this, &MpvObject::updateFrameCount);
+                // 단, 파일이 처음 로드될 때만 (비디오 재생 중 리컨피그는 스킵)
+                if (m_pause && (m_frameCount <= 0 || m_position < 0.5)) {
+                    // 일시정지 상태이고 비디오 시작 부분에서만 업데이트
+                    qDebug() << "Video reconfig detected - updating frame count only in paused state";
+                    QTimer::singleShot(300, this, &MpvObject::updateFrameCount);
+                }
                 break;
             case MPV_EVENT_END_FILE:
             {
@@ -419,8 +505,28 @@ void MpvObject::handleMpvEvents()
                 break;
             }
             case MPV_EVENT_FILE_LOADED:
-                // 파일 로드 완료 후 프레임 수 업데이트
-                QTimer::singleShot(200, this, &MpvObject::updateFrameCount);
+                // 파일 로드 완료 이벤트
+                qDebug() << "File load completed, updating metadata immediately";
+                
+                // 파일 로드 완료 후 프레임 수 업데이트 - 단 한 번만
+                QTimer::singleShot(500, this, [this]() {
+                    // 파일 로드 직후에만 프레임 카운트 업데이트
+                    if (m_frameCount <= 0 || m_position < 0.5) {
+                        qDebug() << "New file loaded - calculating initial frame count";
+                        updateFrameCount();
+                    } else {
+                        qDebug() << "Frame count already calculated - skipping update";
+                    }
+                });
+                
+                // 파일 로드 완료 후 메타데이터 즉시 업데이트
+                updateVideoMetadata();
+                
+                // 첫 번째 업데이트가 실패할 경우를 대비해 약간의 지연을 두고 추가 시도
+                QTimer::singleShot(1500, this, &MpvObject::updateVideoMetadata);
+                
+                // 파일 로드 완료 시그널 발생 (QML에서 감지하기 위함)
+                emit fileLoaded();
             break;
         default:
             break;
@@ -542,7 +648,7 @@ void MpvObject::seekToPosition(double pos)
             return;
         }
         
-        // 시크 전에 지연 중인 타이머 취소
+        // 중요: 시크 전에 지연 중인 타이머 취소하고 마지막 시크 시간 업데이트
         m_lastSeekTime = QDateTime::currentMSecsSinceEpoch();
         
         // 시크하면 endReached 상태 초기화
@@ -1002,14 +1108,52 @@ QString MpvObject::mediaTitle() const
 // 총 프레임 수 계산 메서드 추가
 void MpvObject::updateFrameCount()
 {
-    if (!mpv || m_filename.isEmpty() || m_duration <= 0 || m_fps <= 0) {
+    // 1. 이미 프레임 카운트가 계산되었으면 재계산 안 함 (영상 변경 시에만 계산)
+    static bool frameCounted = false;
+    if (frameCounted && m_frameCount > 0) {
+        qDebug() << "Frame count already calculated - preventing duplicate updates";
         return;
     }
     
+    // 2. 기본 검증
+    if (!mpv || m_filename.isEmpty() || m_duration <= 0 || m_fps <= 0) {
+        qDebug() << "Failed to calculate frame count: missing required data";
+        return;
+    }
+    
+    // 3. 드래그/시크 중에는 업데이트 방지
+    QVariant blocked = false;
+    try {
+        QObject* parent = this->parent();
+        while (parent) {
+            if (parent->metaObject()->className() == QStringLiteral("QQuickItem") || 
+                QString(parent->metaObject()->className()).contains("VideoArea")) {
+                
+                blocked = parent->property("metadataUpdateBlocked");
+                if (blocked.isValid() && blocked.toBool()) {
+                    qDebug() << "Metadata blocked - skipping frame count update";
+                    return;
+                }
+                break;
+            }
+            parent = parent->parent();
+        }
+    } catch (...) {
+        // 무시하고 계속 진행
+    }
+    
+    // 4. 시크 직후에는 업데이트 방지
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastSeekTime > 0 && (now - m_lastSeekTime) < 2000) {
+        qDebug() << "Within 2 seconds after seek - skipping frame count update";
+        return;
+    }
+    
+    // 실제 프레임 카운트 계산 수행
     try {
         qDebug() << "Updating frame count...";
         
-        // MPV에서 직접 프레임 수 가져오기 시도
+        // MPV에서 직접 프레임 수 가져오기
         QVariant frameCountVar = getProperty("estimated-frame-count");
         QVariant exactFramesVar = getProperty("frame-count");
         
@@ -1023,23 +1167,24 @@ void MpvObject::updateFrameCount()
             m_frameCount = frameCountVar.toInt();
             qDebug() << "Estimated frame count from MPV:" << m_frameCount;
         } 
-        // 프레임 수 계산 방식 3: 지속 시간 * FPS (가장 기본적인 계산법)
+        // 프레임 수 계산 방식 3: 지속 시간 * FPS
         else {
-            // 정확히 계산하기 위해 버림 사용 (올림을 하면 실제보다 한 프레임 더 많을 수 있음)
             m_frameCount = std::floor(m_duration * m_fps);
             qDebug() << "Calculated frame count:" << m_frameCount 
                      << "(duration:" << m_duration << "× fps:" << m_fps << ")";
         }
         
-        // 최소값은 1프레임으로 설정
+        // 최소값은 1프레임
         m_frameCount = std::max(1, m_frameCount);
         
-        // 프레임 오프셋 적용 (0 또는 1 기반 설정)
+        // 프레임 오프셋 적용
         int displayedFrameCount = m_oneBasedFrameNumbers ? m_frameCount : m_frameCount - 1;
         
-        // 0 기반일 때는 마지막 프레임 번호가 전체 - 1
         qDebug() << "Final frame count:" << m_frameCount 
                  << "(Displayed as: 0-" << displayedFrameCount << ")";
+        
+        // 이미 계산 완료 표시
+        frameCounted = true;
         
         // 프레임 카운트 변경 신호 발생
         emit frameCountChanged(m_frameCount);
@@ -1083,5 +1228,106 @@ void MpvObject::applyVideoFilters(const QStringList& filters)
     command(QVariantList() << "vf" << "clr");
     for (const QString &f : filters) {
         command(QVariantList() << "vf" << "add" << f);
+    }
+}
+
+// 코덱 정보 접근자 구현
+QString MpvObject::videoCodec() const
+{
+    return m_videoCodec;
+}
+
+QString MpvObject::videoFormat() const
+{
+    return m_videoFormat;
+}
+
+QString MpvObject::videoResolution() const
+{
+    return m_videoResolution;
+}
+
+// 메타데이터 업데이트 함수 구현
+void MpvObject::updateVideoMetadata()
+{
+    if (!mpv) return;
+    
+    // 메타데이터 업데이트가 차단된 상태인지 확인
+    QVariant blocked = false;
+    try {
+        QObject* parent = this->parent();
+        while (parent) {
+            if (parent->metaObject()->className() == QStringLiteral("QQuickItem") || 
+                QString(parent->metaObject()->className()).contains("VideoArea")) {
+                
+                blocked = parent->property("metadataUpdateBlocked");
+                if (blocked.isValid() && blocked.toBool()) {
+                    qDebug() << "Metadata update blocked - skipping update";
+                    return;
+                }
+                break;
+            }
+            parent = parent->parent();
+        }
+    } catch (...) {
+        // 무시하고 계속 진행
+    }
+    
+    // 시크 직후에는 업데이트 방지 (2초 이내)
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_lastSeekTime > 0 && (now - m_lastSeekTime) < 2000) {
+        qDebug() << "Within 2 seconds after seek - skipping metadata update";
+        return;
+    }
+    
+    qDebug() << "Starting metadata update - file:" << m_filename;
+    
+    try {
+        // 비디오 코덱 정보 가져오기
+        QVariant codecVar = getProperty("video-codec");
+        if (codecVar.isValid() && !codecVar.toString().isEmpty()) {
+            QString newCodec = codecVar.toString();
+            if (m_videoCodec != newCodec) {
+                m_videoCodec = newCodec;
+                emit videoCodecChanged(m_videoCodec);
+                qDebug() << "Video codec updated:" << m_videoCodec;
+            }
+        }
+        
+        // 비디오 포맷 정보 가져오기
+        QVariant formatVar = getProperty("video-format");
+        if (formatVar.isValid() && !formatVar.toString().isEmpty()) {
+            QString newFormat = formatVar.toString();
+            if (m_videoFormat != newFormat) {
+                m_videoFormat = newFormat;
+                emit videoFormatChanged(m_videoFormat);
+                qDebug() << "Video format updated:" << m_videoFormat;
+            }
+        }
+        
+        // 비디오 해상도 정보 계산
+        QVariant widthVar = getProperty("width");
+        QVariant heightVar = getProperty("height");
+        if (widthVar.isValid() && heightVar.isValid()) {
+            int width = widthVar.toInt();
+            int height = heightVar.toInt();
+            if (width > 0 && height > 0) {
+                QString newResolution = QString("%1×%2").arg(width).arg(height);
+                if (m_videoResolution != newResolution) {
+                    m_videoResolution = newResolution;
+                    emit videoResolutionChanged(m_videoResolution);
+                    qDebug() << "Video resolution updated:" << m_videoResolution;
+                }
+            }
+        }
+        
+        // 메타데이터 변경 시그널 발생
+        emit videoMetadataChanged();
+        qDebug() << "Metadata update completed";
+        
+    } catch (const std::exception& e) {
+        qWarning() << "Error updating video metadata:" << e.what();
+    } catch (...) {
+        qWarning() << "Unknown error updating video metadata";
     }
 }

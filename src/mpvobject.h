@@ -23,6 +23,11 @@ class MpvObject : public QQuickFramebufferObject
     Q_PROPERTY(bool loop READ isLoopEnabled WRITE setLoopEnabled NOTIFY loopChanged)
     Q_PROPERTY(int frameCount READ frameCount NOTIFY frameCountChanged)
     Q_PROPERTY(bool oneBasedFrameNumbers READ isOneBasedFrameNumbers WRITE setOneBasedFrameNumbers NOTIFY oneBasedFrameNumbersChanged)
+    
+    // 비디오 코덱 정보를 위한 새 프로퍼티
+    Q_PROPERTY(QString videoCodec READ videoCodec NOTIFY videoCodecChanged)
+    Q_PROPERTY(QString videoFormat READ videoFormat NOTIFY videoFormatChanged)
+    Q_PROPERTY(QString videoResolution READ videoResolution NOTIFY videoResolutionChanged)
 
     mpv_handle *mpv;
     mpv_render_context *mpv_context;
@@ -41,6 +46,11 @@ class MpvObject : public QQuickFramebufferObject
     int m_frameCount = 0;
     bool m_oneBasedFrameNumbers = false; // 기본값은 0-기반
     
+    // 코덱 정보 변수 추가
+    QString m_videoCodec = "";
+    QString m_videoFormat = "";
+    QString m_videoResolution = "";
+    
     // 성능 모니터링 관련 변수
     QDateTime m_lastPerformanceCheck;
     bool m_performanceOptimizationApplied = false;
@@ -51,6 +61,7 @@ class MpvObject : public QQuickFramebufferObject
     // 타이머
     QTimer *m_stateChangeTimer = nullptr;
     QTimer *m_performanceTimer = nullptr;
+    QTimer *m_metadataTimer = nullptr;  // 메타데이터 업데이트 타이머
 
 public:
     explicit MpvObject(QQuickItem * parent = 0);
@@ -69,6 +80,11 @@ public:
     int frameCount() const;
     bool isOneBasedFrameNumbers() const;
     void setOneBasedFrameNumbers(bool oneBased);
+    
+    // 코덱 정보 접근자 추가
+    QString videoCodec() const;
+    QString videoFormat() const;
+    QString videoResolution() const;
 
 public slots:
     void play();
@@ -85,6 +101,7 @@ public slots:
     void handleEndOfVideo();
     void seekToPosition(double pos);
     void updateFrameCount();
+    void updateVideoMetadata();  // 메타데이터 업데이트 함수 추가
     void applyVideoFilters(const QStringList& filters);
 
 signals:
@@ -101,6 +118,13 @@ signals:
     void loopChanged(bool);
     void frameCountChanged(int);
     void oneBasedFrameNumbersChanged(bool);
+    
+    // 코덱 정보 변경 시그널 추가
+    void videoCodecChanged(const QString&);
+    void videoFormatChanged(const QString&);
+    void videoResolutionChanged(const QString&);
+    void videoMetadataChanged();  // 모든 메타데이터가 업데이트되었을 때 발생하는 시그널
+    void fileLoaded();  // 파일이 완전히 로드되었을 때 발생하는 시그널
 };
 
 #endif // MPVOBJECT_H 

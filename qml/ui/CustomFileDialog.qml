@@ -4,27 +4,27 @@ import QtQuick.Dialogs
 
 import "../utils"
 
-// 파일 열기/저장 다이얼로그 랩퍼
-// Qt.labs.platform 또는 QtQuick.Dialogs 사용
-// Qt 6.4 이상에서는 QtQuick.Dialogs 권장
+// File open/save dialog wrapper
+// Uses Qt.labs.platform or QtQuick.Dialogs
+// QtQuick.Dialogs recommended for Qt 6.4 and above
 QtObject {
     id: root
     
-    // 속성
-    property string title: "파일 선택"
+    // Properties
+    property string title: "Select File"
     property string folder: StandardPaths.standardLocations(StandardPaths.MoviesLocation)[0]
-    property var nameFilters: ["비디오 파일 (*.mp4 *.mkv *.avi *.mov *.wmv)", "모든 파일 (*.*)"]
+    property var nameFilters: ["Video files (*.mp4 *.mkv *.avi *.mov *.wmv)", "All files (*.*)"]
     property bool selectMultiple: false
     property bool selectFolder: false
-    property bool selectExisting: true // true=열기, false=저장
+    property bool selectExisting: true // true=open, false=save
     
-    // 시그널
+    // Signals
     signal fileSelected(string fileUrl)
     signal filesSelected(var fileUrls)
     signal accepted()
     signal rejected()
     
-    // 내부 구현 - Qt 6.x 네이티브 다이얼로그
+    // Internal implementation - Qt 6.x native dialog
     property var dialog: FileDialog {
         title: root.title
         currentFolder: root.folder ? StandardPaths.findFolder(root.folder) : StandardPaths.standardLocations(StandardPaths.MoviesLocation)[0]
@@ -36,36 +36,35 @@ QtObject {
         }
         
         onAccepted: {
-            console.log("파일 선택됨:", selectedFile)
-            if (root.selectMultiple) {
-                root.filesSelected(files)
-            } else {
-                root.fileSelected(selectedFile)
-            }
-            root.accepted()
+            var selectedFile = selectedFile.toString();
+            // Remove file:/// prefix from selected file path if needed
+            selectedFile = selectedFile.replace(/^(file:\/{2})/, "");
+            console.log("File selected:", selectedFile);
+            
+            // Emit file load signal when file is selected
+            fileSelected(selectedFile);
         }
         
         onRejected: {
-            console.log("파일 선택 취소됨")
-            root.rejected()
+            console.log("File selection cancelled");
         }
     }
     
-    // 다이얼로그 열기
+    // Open dialog
     function open() {
         try {
             dialog.open()
         } catch (e) {
-            console.error("다이얼로그 열기 오류:", e)
+            console.error("Error opening dialog:", e)
         }
     }
     
-    // 다이얼로그 닫기
+    // Close dialog
     function close() {
         try {
             dialog.close()
         } catch (e) {
-            console.error("다이얼로그 닫기 오류:", e)
+            console.error("Error closing dialog:", e)
         }
     }
 } 

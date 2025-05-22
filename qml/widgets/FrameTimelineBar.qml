@@ -31,11 +31,11 @@ Item {
     property int timecodeInterval: Math.max(10, Math.floor(fps))  // Show timecode every N frames
     
     // Colors and styling
-    property color backgroundColor: "#1E1E1E"
-    property color frameColor: "#444444"
-    property color majorFrameColor: "#777777"
-    property color playheadColor: "#FF4444"
-    property color activeTrackColor: "#780000"
+    property color backgroundColor: ThemeManager.timelineBackgroundColor
+    property color frameColor: ThemeManager.timelineFrameColor
+    property color majorFrameColor: ThemeManager.timelineMajorFrameColor
+    property color playheadColor: ThemeManager.timelinePlayheadColor
+    property color activeTrackColor: ThemeManager.timelineActiveTrackColor
     property color timecodeFontColor: "#FFFFFF"
     property int timecodeFontSize: 9
     property string timecodeFontFamily: "Consolas"
@@ -50,6 +50,10 @@ Item {
     property int lastSentFrame: -1  // Track the last frame we sent for seeking
     property bool throttleSeeking: true  // Throttle seeking while dragging for better performance
     property bool recentlyDragged: false  // 드래그 후 안정화 기간 플래그
+    
+    // 안정화 기간 관리 개선
+    property bool seekStabilizing: false  // 시크 안정화 중 플래그 (새로 추가)
+    property int stabilizationPeriod: 300 // 안정화 기간 (ms) - 렉 방지 (새로 추가)
     
     // 플레이헤드 직접 위치 결정 (외부에서 설정된 값이 있으면 우선 사용)
     property real playheadPosition: getExactFramePosition(_internalFrame)
@@ -68,8 +72,8 @@ Item {
     // 양방향 바인딩을 위한 핵심 변경사항
     // 외부 프레임이 변경되면 내부 프레임도 업데이트
     onCurrentFrameChanged: {
-        if (!isDragging && currentFrame !== _internalFrame) {
-            console.log("타임라인: 외부 프레임 변경 감지:", currentFrame);
+        if (!isDragging && !seekStabilizing && currentFrame !== _internalFrame) {
+            console.log("Timeline: External frame change detected:", currentFrame);
             _internalFrame = currentFrame;
             updatePlayhead();
         }
@@ -80,8 +84,8 @@ Item {
         // 내부 프레임이 변경되면 플레이헤드 업데이트
         updatePlayhead();
         
-        // 드래그 중이 아니고 현재 프레임과 차이가 있을 때만 외부에 알림
-        if (!isDragging && _internalFrame !== currentFrame) {
+        // 드래그 중이 아니고, 안정화 중이 아니고, 현재 프레임과 차이가 있을 때만 외부에 알림
+        if (!isDragging && !seekStabilizing && _internalFrame !== currentFrame) {
             // 여기서 바로 currentFrame을 업데이트하지 않고 신호로 보냄
             seekRequested(_internalFrame);
         }
@@ -108,6 +112,34 @@ Item {
         return Math.round(safeFrame * scaleFactor - 1);
     }
     
+    // MPV 시크 작업 최적화 - 중복 코드 제거 및 통합 (새로 추가)
+    function performMpvSeek(frame) {
+        if (!mpvObject) return false;
+        
+        try {
+            console.log("Performing optimized MPV seek to frame:", frame);
+            
+            // 정확한 시간 위치 계산
+            var pos = frame / fps;
+            
+            // 1. 직접 속성 설정 (한 번만 실행, 중복 방지)
+            mpvObject.setProperty("time-pos", pos);
+            
+            // 2. 일시 정지 상태 확인
+            if (!isPlaying) {
+                mpvObject.setProperty("pause", true);
+            }
+            
+            // 3. 내부 프레임 업데이트
+            _internalFrame = frame;
+            
+            return true;
+        } catch (e) {
+            console.error("MPV seek error:", e);
+            return false;
+        }
+    }
+    
     // 내부 상태 초기화 (강제 동기화 시 사용)
     function resetInternalState() {
         if (mpvObject) {
@@ -125,10 +157,10 @@ Item {
                     updatePlayhead();
                     
                     // 로그
-                    console.log("타임라인: 내부 상태 초기화 - 프레임:", mpvFrame);
+                    console.log("Timeline: Internal state reset - frame:", mpvFrame);
                 }
             } catch (e) {
-                console.error("내부 상태 초기화 오류:", e);
+                console.error("Internal state reset error:", e);
             }
         }
     }
@@ -136,9 +168,11 @@ Item {
     // 강제로 플레이헤드 위치 업데이트 타이머
     Timer {
         id: forceUpdateTimer
-        interval: 100  // 더 빠른 업데이트 (100ms, 10fps)
+        interval: 200  // 200ms 간격 유지
         repeat: true
-        running: isPlaying || seekInProgress // 재생 중이거나 시크 중일 때 플레이헤드 위치 강제 업데이트
+        // 드래그 중일 때만 타이머 실행 중지 (다른 조건은 제거)
+        running: !isDragging
+        
         onTriggered: {
             // 현재 프레임 위치에 맞게 플레이헤드 위치 강제 업데이트
             if (!isDragging) {
@@ -149,9 +183,9 @@ Item {
                         if (timePos !== undefined && timePos !== null) {
                             var mpvFrame = Math.round(timePos * fps);
                             
-                            // MPV와 내부 프레임이 크게 다르면 동기화
-                            if (Math.abs(mpvFrame - _internalFrame) > 1) {
-                                console.log("강제 업데이트: MPV 프레임=", mpvFrame, "내부 프레임=", _internalFrame);
+                            // MPV와 내부 프레임이 다르면 동기화
+                            if (Math.abs(mpvFrame - _internalFrame) > 2) {
+                                console.log("Force update: MPV frame=", mpvFrame, "internal frame=", _internalFrame);
                                 _internalFrame = mpvFrame;
                             }
                         }
@@ -166,11 +200,16 @@ Item {
         }
     }
     
-    // 시크 후 검증 타이머 - 더 강력한 동기화
+    // 시크 후 검증 타이머 - 더 강력한 동기화 (간격 증가)
     Timer {
         id: verifySeekTimer
-        interval: 80
+        interval: 200  // 간격 더 증가 (200ms) - CPU 부하 추가 감소
         repeat: false
+        
+        // 시크 실패 방지를 위한 재시도 제한
+        property int retryCount: 0
+        property int maxRetries: 2
+        
         onTriggered: {
             try {
                 // 1. 최종 시크 후 실제 위치 다시 확인
@@ -178,23 +217,27 @@ Item {
                     var finalPos = mpvObject.getProperty("time-pos");
                     if (finalPos !== undefined && finalPos !== null) {
                         var finalFrame = Math.round(finalPos * fps);
-                        console.log("검증: MPV 프레임=", finalFrame, "_internalFrame=", _internalFrame);
+                        console.log("Verification: MPV frame=", finalFrame, "_internalFrame=", _internalFrame);
                         
-                        // 계산된 프레임과 현재 프레임이 다른 경우 한 번 더 동기화
-                        if (finalFrame !== _internalFrame && Math.abs(finalFrame - _internalFrame) > 1) {
-                            console.log("프레임 불일치 감지 - 동기화 수행");
+                        // 계산된 프레임과 현재 프레임이 크게 다른 경우에만 재동기화
+                        // 차이 값 증가 - CPU 부하 감소
+                        if (Math.abs(finalFrame - _internalFrame) > 3) {
+                            console.log("Frame mismatch detected - synchronizing");
                             
                             // 내부 프레임 업데이트
                             _internalFrame = finalFrame;
                             updatePlayhead();
                             
-                            // 이 프레임 위치로 다시 시크 요청 (영상 동기화 보장)
-                            var pos = finalFrame / fps;
-                            mpvObject.command(["seek", pos, "absolute", "exact"]);
-                            
-                            // 상위 컴포넌트에 알림 (이중 업데이트 방지)
-                            if (Math.abs(finalFrame - currentFrame) > 1) {
+                            // 차이가 매우 큰 경우에만 다시 시크 시도 (극단적인 경우만)
+                            if (Math.abs(finalFrame - currentFrame) > 10 && retryCount < maxRetries) {
+                                console.log("Large frame mismatch - retrying seek operation");
+                                retryCount++;
+                                // 차이가 크면 다시 시크 시도
                                 seekRequested(finalFrame);
+                                
+                                // 타이머 재시작하고 여기서 종료
+                                verifySeekTimer.restart();
+                                return;
                             }
                         }
                     }
@@ -202,222 +245,295 @@ Item {
             
                 // 2. 시크 완료 처리
                 seekInProgress = false;
+                retryCount = 0; // 재시도 카운트 리셋
+                
+                // 3. 안정화 기간 종료 (렉 방지 - 중요한 개선)
+                stabilizationTimer.restart();
             } catch (e) {
-                console.error("시크 검증 오류:", e);
+                console.error("Seek verification error:", e);
                 seekInProgress = false;
+                retryCount = 0; // 오류 시에도 카운트 리셋
+                stabilizationTimer.restart();
             }
         }
     }
     
-    // 시크 디바운스 타이머 - MPV 명령 최적화
+    // 새로 추가: 안정화 타이머 - 드래그 후 렉 방지를 위한 핵심 개선
+    Timer {
+        id: stabilizationTimer
+        interval: stabilizationPeriod
+        repeat: false
+        onTriggered: {
+            console.log("Stabilization period ended");
+            seekStabilizing = false;
+            recentlyDragged = false;
+        }
+    }
+    
+    // 시크 디바운스 타이머 - MPV 명령 최적화 (간격 증가)
     Timer {
         id: seekDebounceTimer
-        interval: 40  // 더 빠른 응답성
+        interval: 80  // 간격 증가 (80ms) - CPU 부하 감소하되 반응성 유지
         repeat: false
         onTriggered: {
             if (isDragging && mpvObject) {
                 try {
-                    console.log("드래그 중 시크 (디바운스), 프레임:", dragFrame);
+                    console.log("Drag seek (debounced), frame:", dragFrame);
                     
-                    // 정확한 시간 위치 계산
-                    var pos = dragFrame / fps;
+                    // 통합된 MPV 시크 함수 사용
+                    performMpvSeek(dragFrame);
                     
-                    // 강력한 시크 구현
-                    // 1. 직접 속성 설정 (최고 속도)
-                    mpvObject.setProperty("time-pos", pos);
-                    
-                    // 2. 명령어 인터페이스 사용 (정확도)
-                    mpvObject.command(["seek", pos.toString(), "absolute", "exact"]);
-                    
-                    // 3. 일시 정지 상태 확인
-                    if (!isPlaying) {
-                        mpvObject.setProperty("pause", true);
-                    }
-                    
-                    // 4. UI 업데이트
-                    _internalFrame = dragFrame;
-                    updatePlayhead();
-                    
-                    // 5. 시그널 발생 (상위 알림)
+                    // 시그널 발생 (상위 알림)
                     seekRequested(dragFrame);
                     
-                    // 6. 상태 로그
-                    console.log("MPV 시크 적용 완료, 프레임:", dragFrame, "시간:", pos);
                 } catch (e) {
-                    console.error("디바운스 시크 오류:", e);
+                    console.error("Debounce seek error:", e);
                 }
             }
         }
     }
     
-    // Background
+    // Main timeline background
     Rectangle {
+        id: timelineBackground
         anchors.fill: parent
-        color: ThemeManager.timelineBackgroundColor
-        border.color: ThemeManager.borderColor
-        border.width: 1
-    }
-    
-    // Frame markers container
-    Item {
-        id: timelineContent
-        anchors.fill: parent
-        clip: true // Prevent drawing outside bounds
+        color: backgroundColor
         
-        // Draw all frame markers using Canvas for better performance
-        Canvas {
-            id: frameMarkers
+        // Create the timeline markers
+        Item {
+            id: timelineMarkers
             anchors.fill: parent
+            anchors.topMargin: 3
+            anchors.bottomMargin: 12
             
-            // Use layer for hardware acceleration where available
-            layer.enabled: true
-            layer.samples: 2  // 샘플링 수 감소 (성능 향상)
-            
-            // 캔버스 렌더링 속도 향상을 위한 최적화
-            renderStrategy: Canvas.Cooperative 
-            renderTarget: Canvas.FramebufferObject
-            
-            onPaint: {
-                var ctx = getContext("2d");
-                ctx.reset();
+            // Draw frame markers using a canvas
+            Canvas {
+                id: frameMarkersCanvas
+                anchors.fill: parent
                 
-                // Don't draw anything if totalFrames isn't valid yet
-                if (totalFrames <= 0) return;
+                // Redraw on window resize or totalFrames change
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
                 
-                var height = frameMarkers.height;
-                var displayWidth = width;
-                
-                // Calculate spacing to fill the entire width
-                var spacing = displayWidth / totalFrames;
-                
-                // Optimize rendering - only draw visible markers
-                // This drastically improves performance for long videos
-                var visibleFramesPerPixel = totalFrames / displayWidth;
-                
-                // If we have more frames than pixels, we need to be selective about what we draw
-                if (visibleFramesPerPixel > 1) {
-                    // Draw reduced number of markers for performance
-                    var stepSize = Math.max(1, Math.floor(visibleFramesPerPixel));
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.reset();
                     
-                    for (var i = 0; i < totalFrames; i += stepSize) {
-                        var x = i * spacing;
+                    // Skip if we don't have enough frames
+                    if (totalFrames <= 0) return;
+                    
+                    var h = height;
+                    
+                    // Draw frame markers
+                    ctx.strokeStyle = frameColor;
+                    ctx.lineWidth = 1;
+                    
+                    // Optimize by drawing fewer markers when zoomed out
+                    var skipFactor = Math.ceil(totalFrames / width / 0.5);
+                    
+                    for (var i = 0; i < totalFrames; i += skipFactor) {
+                        // Position for current frame
+                        var x = i * scaleFactor;
                         
-                        // Draw major frame markers
+                        // Skip if offscreen
+                        if (x > width) break;
+                        
+                        // Major frame markers (every N frames)
                         if (i % majorFrameInterval === 0) {
-                            ctx.strokeStyle = ThemeManager.timelineMajorFrameColor;
-                            ctx.lineWidth = 1;
                             ctx.beginPath();
                             ctx.moveTo(x, 0);
-                            ctx.lineTo(x, height * 0.7);
+                            ctx.lineTo(x, h * 0.75);
+                            ctx.strokeStyle = majorFrameColor;
                             ctx.stroke();
                             
-                            // Add timecode for major frame intervals - but less frequently for performance
-                            if (i % (timecodeInterval * 2) === 0) {
-                                ctx.fillStyle = "white";
+                            // Add timecode label for major intervals
+                            if (i % timecodeInterval === 0) {
+                                ctx.fillStyle = timecodeFontColor;
                                 ctx.font = timecodeFontSize + "px " + timecodeFontFamily;
                                 ctx.textAlign = "center";
-                                ctx.fillText((i + displayOffset).toString(), x, height * 0.4);
+                                ctx.fillText(i.toString(), x, h - 2);
+                            }
+                        } else {
+                            // Minor frame markers
+                            ctx.beginPath();
+                            ctx.moveTo(x, 0);
+                            ctx.lineTo(x, h * 0.4);
+                            ctx.strokeStyle = frameColor;
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Active area track (red background for active area)
+        Rectangle {
+            id: activeTrack
+            anchors.left: parent.left
+            anchors.right: playhead.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.topMargin: 3
+            anchors.bottomMargin: 12
+            color: activeTrackColor
+        }
+        
+        // Playhead marker
+        Rectangle {
+            id: playhead
+            width: 2
+            anchors.top: parent.top 
+            anchors.bottom: parent.bottom
+            anchors.topMargin: 3
+            anchors.bottomMargin: 12
+            x: playheadPosition
+            color: playheadColor
+            
+            // Playhead handle for easier dragging
+            Rectangle {
+                id: playheadHandle
+                width: 10
+                height: 8
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                color: playheadColor
+                radius: 2
+            }
+        }
+        
+        // Mouse area for timeline interaction
+        MouseArea {
+            id: timelineMouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            
+            onMouseXChanged: {
+                // Only update during drag operation
+                if (pressed) {
+                    var frame = Math.round(mouseX / scaleFactor);
+                    
+                    // Make sure we have a valid frame in range
+                    if (totalFrames > 0) {
+                        frame = Math.max(0, Math.min(frame, totalFrames - 1));
+                    } else {
+                        frame = 0;
+                    }
+                    
+                    // Update drag frame
+                    if (dragFrame !== frame) {
+                        dragFrame = frame;
+                        
+                        // Move playhead during drag
+                        playhead.x = getExactFramePosition(dragFrame);
+                        
+                        // Update activeTrack to follow playhead
+                        activeTrack.width = playhead.x;
+                        
+                        // Throttled seeking during drag to improve performance
+                        if (throttleSeeking) {
+                            // 시크 요청 빈도 제한 - 더 공격적으로 제한 (개선됨)
+                            if (lastSentFrame === -1 || Math.abs(dragFrame - lastSentFrame) > 5) {
+                                lastSentFrame = dragFrame;
+                                seekDebounceTimer.restart();
+                            }
+                        } else {
+                            // Immediate seeking
+                            if (mpvObject) {
+                                seekDebounceTimer.restart();
                             }
                         }
                     }
+                }
+            }
+            
+            onPressed: {
+                // 드래그 시작 - 안정화 중단 (새로 추가)
+                seekStabilizing = false;
+                stabilizationTimer.stop();
+                
+                isDragging = true;
+                recentlyDragged = true;
+                
+                // MPV 메타데이터 업데이트 차단 설정 (VideoArea에 알림)
+                if (mpvObject && mpvObject.parentItem && 
+                    typeof mpvObject.parentItem.metadataUpdateBlocked !== "undefined") {
+                    mpvObject.parentItem.metadataUpdateBlocked = true;
+                    console.log("Timeline: Blocked metadata updates during drag");
+                }
+                
+                // Calculate which frame was clicked
+                var frame = Math.round(mouseX / scaleFactor);
+                
+                // Make sure we have a valid frame in range
+                if (totalFrames > 0) {
+                    frame = Math.max(0, Math.min(frame, totalFrames - 1));
                 } else {
-                    // We have fewer frames than pixels, can draw all markers
-                    for (var i = 0; i < totalFrames; i++) {
-                        var x = i * spacing;
+                    frame = 0;
+                }
+                
+                // Update drag frame
+                dragFrame = frame;
+                lastSentFrame = -1; // Reset
+                
+                // Move playhead immediately on click
+                playhead.x = getExactFramePosition(dragFrame);
+                
+                // Update activeTrack to follow playhead
+                activeTrack.width = playhead.x;
+                
+                // Immediately seek to the clicked position
+                if (mpvObject) {
+                    seekInProgress = true;
+                    try {
+                        // 통합된 MPV 시크 함수 사용 (개선)
+                        performMpvSeek(dragFrame);
                         
-                        // 성능을 위해 모든 프레임을 그리지 않고 선택적으로 그림
-                        if (i % 2 === 0) {
-                        // Draw frame marker
-                        if (i % majorFrameInterval === 0) {
-                            // Major frame (taller line)
-                            ctx.strokeStyle = ThemeManager.timelineMajorFrameColor;
-                            ctx.lineWidth = 1;
-                            ctx.beginPath();
-                            ctx.moveTo(x, 0);
-                            ctx.lineTo(x, height * 0.7);
-                            ctx.stroke();
-                        } else {
-                            // Regular frame
-                            ctx.strokeStyle = ThemeManager.timelineFrameColor;
-                            ctx.lineWidth = 1;
-                            ctx.beginPath();
-                            ctx.moveTo(x, height * 0.5);
-                            ctx.lineTo(x, height * 0.7);
-                            ctx.stroke();
-                        }
-                        }
-                        
-                        // Add timecode for major frames - less often for performance
-                        if (i % timecodeInterval === 0 && i % 2 === 0) {
-                            // Draw timecode text with offset for display
-                            ctx.fillStyle = "white";
-                            ctx.font = timecodeFontSize + "px " + timecodeFontFamily;
-                            ctx.textAlign = "center";
-                            ctx.fillText((i + displayOffset).toString(), x, height * 0.4);
-                        }
+                        // 시그널 발생
+                        console.log("Click seek:", dragFrame);
+                        _internalFrame = dragFrame;
+                    } catch (e) {
+                        console.error("Click seek error:", e);
+                        seekInProgress = false;
                     }
                 }
             }
-        }
-        
-        // Current frame playhead - direct position control without animations
-        Rectangle {
-            id: playhead
-            x: playheadPosition
-            width: 2
-            height: parent.height * 0.85
-            y: 0
-            color: ThemeManager.timelinePlayheadColor
-            visible: !isDragging
             
-            // Triangle pointer at the bottom of the playhead
-            Canvas {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                width: 10
-                height: 5
-                
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.reset();
-                    ctx.fillStyle = parent.color;
-                    ctx.beginPath();
-                    ctx.moveTo(0, 0);
-                    ctx.lineTo(width, 0);
-                    ctx.lineTo(width/2, height);
-                    ctx.closePath();
-                    ctx.fill();
-                }
-            }
-        }
-        
-        // Drag handle (shown during dragging)
-        Rectangle {
-            id: dragHandle
-            x: isDragging ? getExactFramePosition(dragFrame) : getExactFramePosition(currentFrame)
-            width: 2
-            height: parent.height * 0.85
-            y: 0
-            color: ThemeManager.accentColor
-            visible: isDragging
-            
-            // Triangle pointer at the bottom
-            Canvas {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                width: 10
-                height: 5
-                
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.reset();
-                    ctx.fillStyle = parent.color;
-                    ctx.beginPath();
-                    ctx.moveTo(0, 0);
-                    ctx.lineTo(width, 0);
-                    ctx.lineTo(width/2, height);
-                    ctx.closePath();
-                    ctx.fill();
+            onReleased: {
+                // If dragging was actually happening
+                if (isDragging) {
+                    console.log("Timeline drag released, final frame:", dragFrame);
+                    
+                    // Update internal frame to match drag frame
+                    _internalFrame = dragFrame;
+                    
+                    // 안정화 기간 시작 (새로 추가 - 중요한 개선)
+                    seekStabilizing = true;
+                    
+                    // 메타데이터 업데이터는 드래그 후에도 계속 차단 유지
+                    // 메타데이터는 처음 파일 로드시에만 필요하므로 해제하지 않음
+                    
+                    // Ensure a final accurate seek occurs
+                    if (mpvObject) {
+                        try {
+                            // 통합된 MPV 시크 함수 사용 (개선)
+                            performMpvSeek(dragFrame);
+                            
+                            // Verify after a short delay
+                            verifySeekTimer.restart();
+                        } catch (e) {
+                            console.error("Final seek error:", e);
+                            // 오류 시에도 안정화 타이머 시작
+                            stabilizationTimer.restart();
+                            seekInProgress = false;
+                        }
+                    } else {
+                        // MPV가 없어도 안정화 타이머 시작
+                        stabilizationTimer.restart();
+                        seekInProgress = false;
+                    }
+                    
+                    // End drag operation
+                    isDragging = false;
                 }
             }
         }
@@ -443,310 +559,26 @@ Item {
         }
     }
     
-    // Mouse handling for timeline interaction - 드래그 핵심 코드 최적화
-    MouseArea {
-        anchors.fill: parent
-        
-        onPressed: {
-            try {
-                // 1. 드래그 시작
-                isDragging = true;
-                
-                // 2. 정확한 좌표 계산 (범위 제한 적용)
-                var clampedX = Math.min(Math.max(0, mouseX), width);
-                var frameFraction = clampedX / scaleFactor;
-                dragFrame = Math.min(Math.max(0, Math.round(frameFraction)), Math.max(1, totalFrames - 50));
-                
-                // 3. 드래그 핸들 UI 업데이트
-                dragHandle.x = getExactFramePosition(dragFrame);
-                
-                // 4. 내부 프레임 즉시 업데이트 (지연 없이) - 바인딩 유지
-                _internalFrame = dragFrame;
-                
-                // 5. endReached 상태 초기화
-                if (mpvObject && mpvObject.endReached) {
-                    mpvObject.resetEndReached();
-                }
-                
-                // 6. MPV 직접 시크 명령 - 최우선 (강제 적용)
-                if (mpvObject) {
-                    try {
-                        var pos = dragFrame / fps;
-                        
-                        // 첫번째 시크: 속성 직접 설정 (즉각 적용)
-                        mpvObject.setProperty("time-pos", pos);
-                        
-                        // 두번째 시크: 명령 인터페이스 (정확도 향상)
-                        mpvObject.command(["seek", pos.toString(), "absolute", "exact"]);
-                        
-                        // 일시 정지 상태 확인
-                        if (!isPlaying) {
-                            mpvObject.setProperty("pause", true);
-                        }
-                        
-                        // 로그 출력
-                        console.log("드래그 시작 시크 명령 전송 - 프레임:", dragFrame, "시간:", pos);
-                        
-                        // 7. 시그널 발생 (상위 객체에 알림)
-                        seekRequested(dragFrame);
-                    } catch (e) {
-                        console.error("MPV 시크 명령 오류:", e);
-                    }
-                }
-                
-                // 상태 플래그 설정
-                seekInProgress = true;
-            } catch (e) {
-                console.error("드래그 시작 오류:", e);
-                isDragging = false;
-                seekInProgress = false;
-            }
-        }
-        
-        onPositionChanged: {
-            if (isDragging) {
-                try {
-                    // 1. 안전한 좌표 범위 계산
-                    var clampedX = Math.min(Math.max(0, mouseX), width);
-                    
-                    // 2. 정확한 프레임 계산
-                    var frameFraction = clampedX / scaleFactor;
-                    var newDragFrame = Math.min(Math.max(0, Math.round(frameFraction)), Math.max(1, totalFrames - 50));
-                
-                    // 3. 프레임이 실제로 변경된 경우에만 처리
-                    if (newDragFrame !== dragFrame) {
-                        // 드래그 프레임 업데이트
-                        dragFrame = newDragFrame;
-                        
-                        // 드래그 핸들 UI 업데이트
-                        dragHandle.x = getExactFramePosition(dragFrame);
-                        
-                        // 내부 프레임 즉시 업데이트
-                        _internalFrame = dragFrame;
-                        
-                        // MPV에 즉각적인 업데이트 (즉시 피드백)
-                        if (mpvObject) {
-                            try {
-                                var pos = dragFrame / fps;
-                                
-                                // UI 즉각 반응을 위한 속성 직접 설정
-                                mpvObject.setProperty("time-pos", pos);
-                                
-                                // 로그 출력
-                                console.log("드래그 중 즉시 업데이트 - 프레임:", dragFrame);
-                            } catch (e) {
-                                // 드래그 중 오류는 무시 (성능 위해)
-                            }
-                        }
-                        
-                        // 디바운스 설정 - 더 빠른 응답을 위해 인터벌 축소
-                        if (!seekDebounceTimer.running) {
-                            seekDebounceTimer.interval = 40; // 더 빠른 응답
-                            seekDebounceTimer.restart();
-                        }
-                    }
-                } catch (e) {
-                    console.error("드래그 중 오류:", e);
-                }
-            }
-        }
-        
-        onReleased: {
-            if (isDragging) {
-                try {
-                    console.log("드래그 완료, 최종 프레임:", dragFrame);
-                
-                    // 1. 정확한 시간 위치 계산
-                    var pos = dragFrame / fps;
-                
-                    // 2. 안전한 범위 계산
-                    if (mpvObject && mpvObject.duration > 0) {
-                        // 3. MPV로 강력한 직접 시크 명령 송출
-                        // 3.1 속성 직접 설정 (최우선)
-                        mpvObject.setProperty("time-pos", pos);
-                        
-                        // 3.2 시크 명령 전송 (정확도 향상)
-                        mpvObject.command(["seek", pos, "absolute", "exact"]);
-                        
-                        // 이전 위치에서 새 위치로 강제 시크 (최종 보장)
-                        var currentPos = mpvObject.getProperty("time-pos");
-                        if (currentPos !== undefined && currentPos !== null) {
-                            if (Math.abs(currentPos - pos) > 0.01) {
-                                // 차이가 있으면 다시 시크
-                                console.log("위치 차이 발견, 재시크 - 현재:", currentPos, "목표:", pos);
-                                mpvObject.setProperty("time-pos", pos);
-                                mpvObject.command(["seek", pos, "absolute", "exact"]);
-                            }
-                        }
-                        
-                        // 일시 정지 상태 확인
-                        if (!isPlaying) {
-                            mpvObject.setProperty("pause", true);
-                        }
-                        
-                        // 4. 내부 프레임 업데이트 - 먼저
-                        _internalFrame = dragFrame;
-                        
-                        // 5. 상위 컴포넌트에 알림 - 중요: 강제로 현재 프레임을 업데이트
-                        currentFrame = dragFrame; // 직접 현재 프레임 업데이트
-                        
-                        // 6. 시그널 발생 (추가)
-                        seekRequested(dragFrame);
-                    }
-                    
-                    // 7. 드래그 상태 초기화
-                    isDragging = false;
-                    
-                    // 8. 드래그 후 안정화 플래그 설정 및 타이머 시작
-                    recentlyDragged = true;
-                    dragStabilizationTimer.restart();
-                    console.log("드래그 안정화 타이머 시작 - 다음 800ms 동안 MPV 싱크 이벤트 무시");
-                
-                    // 9. 검증 타이머 시작 (더 길게 설정)
-                    verifySeekTimer.interval = 100;
-                    verifySeekTimer.restart();
-                    
-                    // 10. 강제 동기화 타이머
-                    forceUpdateTimer.restart();
-                    
-                    // 11. 복구 타이머 시작
-                    recoveryTimer.interval = 150;
-                    recoveryTimer.restart();
-                    
-                    // 12. MPV 동기화를 위한 두 번째 시크
-                    secondSyncTimer.start();
-                    
-                    // 13. 최종 확인
-                    finalSyncTimer.dragFrame = dragFrame;
-                    finalSyncTimer.start();
-                } catch (e) {
-                    console.error("드래그 종료 오류:", e);
-                    isDragging = false;
-                    seekInProgress = false;
-                }
-            }
-        }
-    }
-    
-    // 두 번째 동기화 타이머 (Qt.setTimeout 대체)
-    Timer {
-        id: secondSyncTimer
-        interval: 200
-        repeat: false
-        onTriggered: {
-            if (mpvObject && mpvObject.duration > 0) {
-                // 한 번 더 시크 명령 전송 (확실한 적용을 위해)
-                var pos = dragFrame / fps;
-                mpvObject.seekToPosition(pos);
-            }
-        }
-    }
-    
-    // 바인딩 복원 타이머 - 드래그 후 동기화 처리
-    Timer {
-        id: recoveryTimer
-        interval: 200
-        repeat: false
-        onTriggered: {
-            try {
-                if (!isDragging && mpvObject) {
-                    var timePos = mpvObject.getProperty("time-pos");
-                    if (timePos !== undefined && timePos !== null) {
-                        // 현재 프레임 동기화 (내부만)
-                        var mpvFrame = Math.round(timePos * fps);
-                        console.log("복구: MPV 프레임=", mpvFrame, "_internalFrame=", _internalFrame);
-                        
-                        // 차이가 크면 완전히 다시 동기화
-                        if (Math.abs(mpvFrame - _internalFrame) > 1) {
-                            console.log("프레임 불일치 복구 - 강제 동기화 수행");
-                            
-                            // 1. 내부 프레임 업데이트
-                            _internalFrame = mpvFrame;
-                            updatePlayhead();
-                            
-                            // 2. MPV 포지션으로 명시적 시크 다시 수행
-                            mpvObject.command(["seek", timePos, "absolute", "exact"]);
-                            
-                            // 3. 상위 객체에 알림 (중요: 영상과 UI 완전 동기화)
-                            if (Math.abs(mpvFrame - currentFrame) > 1) {
-                                seekRequested(mpvFrame);
-                            }
-                            
-                            console.log("복구 완료: 최종 프레임=", mpvFrame);
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error("Timeline recovery error:", e);
-            }
-        }
-    }
-    
-    // 최종 동기화 검증 타이머 (드래그 완료 후 300ms)
-    Timer {
-        id: finalSyncTimer
-        interval: 300
-        repeat: false
-        property int dragFrame: 0
-        
-        onTriggered: {
-            if (mpvObject) {
-                try {
-                    // 현재 실제 MPV 위치 확인
-                    var timePos = mpvObject.getProperty("time-pos");
-                    var currentMpvFrame = Math.round(timePos * fps);
-                    
-                    // UI 프레임과 큰 차이가 있는지 확인
-                    var targetFrame = dragFrame;
-                    if (Math.abs(currentMpvFrame - targetFrame) > 1) {
-                        console.log("최종 동기화: 불일치 감지 -", currentMpvFrame, "vs", targetFrame);
-                        
-                        // 한 번 더 강제 시크
-                        var pos = targetFrame / fps;
-                        mpvObject.setProperty("time-pos", pos);
-                        mpvObject.command(["seek", pos, "absolute", "exact"]);
-                        
-                        // 상위 객체에도 알림
-                        seekRequested(targetFrame);
-                    }
-                } catch (e) {
-                    console.error("최종 동기화 오류:", e);
-                }
-            }
-        }
-    }
-    
-    // 드래그 안정화 타이머 - 드래그 후 MPV 싱크 이벤트를 일시적으로 차단함
-    Timer {
-        id: dragStabilizationTimer
-        interval: 800  // 드래그 후 800ms 동안 MPV 싱크 이벤트 무시
-        repeat: false
-        onTriggered: {
-            recentlyDragged = false;
-            console.log("드래그 안정화 기간 종료");
-        }
-    }
-    
     // Update display when properties change
     onTotalFramesChanged: {
-        frameMarkers.requestPaint();
+        frameMarkersCanvas.requestPaint();
     }
     
     onWidthChanged: {
-        frameMarkers.requestPaint();
+        frameMarkersCanvas.requestPaint();
     }
     
     onFpsChanged: {
         timecodeInterval = Math.max(10, Math.floor(fps));
-        frameMarkers.requestPaint();
+        frameMarkersCanvas.requestPaint();
     }
     
     // 프레임 번호 체계에 따라 업데이트
     onDisplayOffsetChanged: {
-        frameMarkers.requestPaint();
+        frameMarkersCanvas.requestPaint();
     }
     
     Component.onCompleted: {
-        frameMarkers.requestPaint();
+        frameMarkersCanvas.requestPaint();
     }
 }

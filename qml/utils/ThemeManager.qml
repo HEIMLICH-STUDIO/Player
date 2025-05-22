@@ -43,6 +43,16 @@ QtObject {
     readonly property color buttonPressedColor: isDarkTheme ? "#1E6CB9" : "#0069BC"
     readonly property color buttonTextColor: "#FFFFFF"
     
+    // Control buttons - player controls design
+    readonly property color controlButtonColor: isDarkTheme ? "#404040" : "#777777"
+    readonly property color controlButtonHoverColor: isDarkTheme ? "#505050" : "#888888"
+    readonly property color controlButtonPressedColor: isDarkTheme ? "#303030" : "#666666"
+    readonly property color controlButtonTextColor: isDarkTheme ? "#FFFFFF" : "#FFFFFF"
+    readonly property int controlButtonRadius: 14  // 캡슐형 버튼 반지름
+    readonly property int controlButtonHeight: 28  // 컨트롤 버튼 높이
+    readonly property int controlBarHeight: 80  // 컨트롤바 높이 (타임라인 제외)
+    readonly property int hoverAnimationDuration: 150  // 호버 애니메이션 지속 시간 (ms)
+    
     // Scrollbar style - minimal like pro apps
     readonly property color scrollBarColor: isDarkTheme ? "#4D4D4D" : "#C0C0C0"
     readonly property color scrollBarHoverColor: isDarkTheme ? "#666666" : "#A0A0A0"
@@ -64,6 +74,7 @@ QtObject {
     readonly property color timelineFrameColor: isDarkTheme ? "#444444" : "#BBBBBB"
     readonly property color timelineMajorFrameColor: isDarkTheme ? "#666666" : "#888888" 
     readonly property color timelinePlayheadColor: "#FF453A" // Apple-inspired playhead
+    readonly property color timelineActiveTrackColor: Qt.rgba(1.0, 1.0, 1.0, 0.15) // 투명한 흰색
     
     // Debug logging
     onCurrentThemeChanged: {
