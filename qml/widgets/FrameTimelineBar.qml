@@ -93,7 +93,7 @@ Item {
     // 외부 프레임이 변경되면 내부 프레임도 업데이트
     onCurrentFrameChanged: {
         if (!isDragging && !seekStabilizing && currentFrame !== _internalFrame) {
-            console.log("Timeline: External frame change detected:", currentFrame);
+            // console.log("Timeline: External frame change detected:", currentFrame);
             
             // 범위 검증 - 외부에서 잘못된 프레임 번호가 전달될 경우 방지
             if (totalFrames > 0 && currentFrame >= totalFrames) {
@@ -479,7 +479,7 @@ Item {
         // Playhead marker
         Rectangle {
             id: playhead
-            width: 2
+            width: 1
             anchors.top: parent.top 
             anchors.bottom: parent.bottom
             anchors.topMargin: 3
@@ -490,7 +490,7 @@ Item {
             // Playhead handle for easier dragging
             Rectangle {
                 id: playheadHandle
-                width: 10
+                width: 3
                 height: 8
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom

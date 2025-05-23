@@ -1,0 +1,276 @@
+; Player by HEIMLICH Installer Script
+; Professional video player for media analysis and frame-by-frame inspection
+
+;--------------------------------
+; General
+
+  ; 인스톨러 정보 - 유니코드 문제 해결을 위해 간단하게 설정
+  !define APP_NAME "Player by HEIMLICH"
+  !define APP_NAME_DISPLAY "Player by HEIMLICH"
+  !define APP_VERSION "@PROJECT_VERSION@"
+  !define APP_PUBLISHER "HEIMLICH"
+  !define APP_URL "https://github.com/heimlich/player-by-heimlich"
+  !define APP_DESCRIPTION "Player by HEIMLICH"
+  
+  ; 실행 파일 이름 - 실제 빌드된 이름과 일치
+  !define APP_EXE "Player-by-HEIMLICH.exe"
+  
+  ; 고급 UI 사용
+  !include "MUI2.nsh"
+  !include "FileFunc.nsh"
+  
+  ; 인스톨러 기본 설정
+  Name "${APP_NAME_DISPLAY}"
+  OutFile "${APP_NAME}-Setup-v${APP_VERSION}.exe"
+  Unicode True
+  
+  ; 기본 설치 경로
+  InstallDir "$PROGRAMFILES64\${APP_NAME}"
+  InstallDirRegKey HKLM "Software\${APP_PUBLISHER}\${APP_NAME}" "InstallDir"
+  
+  ; 관리자 권한 요구
+  RequestExecutionLevel admin
+  
+  ; 압축 설정
+  SetCompressor /SOLID lzma
+  SetCompressorDictSize 64
+  
+  ; 버전 정보
+  VIProductVersion "${APP_VERSION}.0"
+  VIAddVersionKey "ProductName" "${APP_NAME}"
+  VIAddVersionKey "ProductVersion" "${APP_VERSION}"
+  VIAddVersionKey "CompanyName" "${APP_PUBLISHER}"
+  VIAddVersionKey "FileDescription" "${APP_DESCRIPTION}"
+  VIAddVersionKey "FileVersion" "${APP_VERSION}"
+  VIAddVersionKey "LegalCopyright" "© 2025 ${APP_PUBLISHER}"
+
+;--------------------------------
+; Interface Settings
+
+  ; MUI 설정
+  !define MUI_ABORTWARNING
+  
+  ; 커스텀 아이콘 사용 - 상대 경로
+  !define MUI_ICON "assets\\Images\\icon_win.ico"
+  !define MUI_UNICON "assets\\Images\\icon_win.ico"
+  
+  ; 인스톨러 자체 아이콘도 설정 (exe 파일 아이콘)
+  Icon "assets\\Images\\icon_win.ico"
+  UninstallIcon "assets\\Images\\icon_win.ico"
+  
+  ; 모던 UI 설정
+  !define MUI_HEADERIMAGE
+  !define MUI_HEADERIMAGE_RIGHT
+  !define MUI_COMPONENTSPAGE_SMALLDESC
+  
+  ; 더 다크한 색상 설정 (제한적이지만 적용)
+  !define MUI_TEXTCOLOR "F0F0F0"
+  !define MUI_BGCOLOR "2D2D30"
+  
+  ; 설치 페이지 색상 (다크 콘솔 스타일)
+  !define MUI_INSTFILESPAGE_COLORS "F0F0F0 1E1E1E"
+  
+  ; 라이센스 페이지 배경색 (다크)
+  !define MUI_LICENSEPAGE_BGCOLOR "1E1E1E"
+  
+  ; 디렉토리 선택 페이지 배경색
+  !define MUI_DIRECTORYPAGE_BGCOLOR "2D2D30"
+  
+  ; 시작 메뉴 폴더 배경색
+  !define MUI_STARTMENUPAGE_BGCOLOR "2D2D30"
+  
+  ; 커스텀 브랜딩 텍스트 (더 스타일리시하게)
+  !define MUI_BRANDINGTEXT "Player by HEIMLICH® v${APP_VERSION} | Professional Video Technology"
+  
+  ; 환영 페이지 설정
+  !define MUI_WELCOMEPAGE_TITLE "Welcome to Player by HEIMLICH® Setup"
+  !define MUI_WELCOMEPAGE_TEXT "This setup wizard will install Player by HEIMLICH® - Professional Video Player$\r$\n$\r$\n✓ Hardware-accelerated video playback$\r$\n✓ Frame-by-frame analysis tools$\r$\n✓ Advanced media controls$\r$\n✓ Professional-grade performance$\r$\n$\r$\nClick Next to begin the installation."
+  
+  ; 완료 페이지 설정
+  !define MUI_FINISHPAGE_RUN "$INSTDIR\\${APP_EXE}"
+  !define MUI_FINISHPAGE_RUN_TEXT "Launch Player by HEIMLICH® now"
+  !define MUI_FINISHPAGE_TITLE "Setup Complete"
+  !define MUI_FINISHPAGE_TEXT "Player by HEIMLICH® has been successfully installed.$\r$\n$\r$\n🎯 Ready for professional video analysis$\r$\n🚀 Optimized for high-performance playback$\r$\n⚡ Hardware acceleration enabled$\r$\n$\r$\nThank you for choosing Player by HEIMLICH®!"
+  
+  ; 바탕화면 바로가기 생성 옵션
+  !define MUI_FINISHPAGE_SHOWREADME ""
+  !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
+  !define MUI_FINISHPAGE_SHOWREADME_TEXT "Create desktop shortcut"
+  !define MUI_FINISHPAGE_SHOWREADME_FUNCTION CreateDesktopShortcut
+  
+  ; 언인스톨 설정
+  !define MUI_UNWELCOMEPAGE_TITLE "Uninstall Player by HEIMLICH®"
+  !define MUI_UNWELCOMEPAGE_TEXT "This wizard will completely remove Player by HEIMLICH® from your computer.$\r$\n$\r$\n⚠️ Please ensure Player by HEIMLICH® is not currently running.$\r$\n$\r$\nClick Next to continue with the uninstallation."
+
+;--------------------------------
+; Pages
+
+  ; 설치 페이지들
+  !insertmacro MUI_PAGE_WELCOME
+  !insertmacro MUI_PAGE_LICENSE "LICENSE.txt"
+  !insertmacro MUI_PAGE_COMPONENTS
+  !insertmacro MUI_PAGE_DIRECTORY
+  !insertmacro MUI_PAGE_INSTFILES
+  !insertmacro MUI_PAGE_FINISH
+  
+  ; 제거 페이지들
+  !insertmacro MUI_UNPAGE_WELCOME
+  !insertmacro MUI_UNPAGE_CONFIRM
+  !insertmacro MUI_UNPAGE_INSTFILES
+  !insertmacro MUI_UNPAGE_FINISH
+
+;--------------------------------
+; Languages
+
+  !insertmacro MUI_LANGUAGE "English"
+  !insertmacro MUI_LANGUAGE "Korean"
+
+;--------------------------------
+; License
+
+LicenseData "LICENSE.txt"
+
+;--------------------------------
+; Installer Sections
+
+Section "${APP_NAME} (required)" SecMain
+  
+  SectionIn RO
+  
+  ; 파일 설치 시작
+  SetOutPath "$INSTDIR"
+  
+  ; 메인 실행파일
+  File "build\${APP_EXE}"
+  
+  ; Qt 라이브러리들
+  File "build\*.dll"
+  
+  ; 폴더들 복사
+  File /r "build\platforms"
+  File /r "build\styles"
+  File /r "build\imageformats"
+  File /r "build\qml"
+  File /r "build\translations"
+  File /r "build\assets"
+  
+  ; 레지스트리에 설치 정보 저장
+  WriteRegStr HKLM "Software\${APP_PUBLISHER}\${APP_NAME}" "InstallDir" "$INSTDIR"
+  WriteRegStr HKLM "Software\${APP_PUBLISHER}\${APP_NAME}" "Version" "${APP_VERSION}"
+  
+  ; 프로그램 추가/제거에 등록
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayName" "${APP_NAME}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "Publisher" "${APP_PUBLISHER}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "URLInfoAbout" "${APP_URL}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayIcon" "$INSTDIR\${APP_EXE}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "UninstallString" "$INSTDIR\Uninstall.exe"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "QuietUninstallString" "$INSTDIR\Uninstall.exe /S"
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoModify" 1
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoRepair" 1
+  
+  ; 설치 크기 계산
+  ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
+  IntFmt $0 "0x%08X" $0
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "EstimatedSize" "$0"
+  
+  ; 언인스톨러 생성
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+  
+SectionEnd
+
+; 시작 메뉴 바로가기
+Section "Start Menu Shortcuts" SecStartMenu
+  
+  CreateDirectory "$SMPROGRAMS\${APP_NAME}"
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
+  
+SectionEnd
+
+; 파일 연결 (선택사항)
+Section "File Associations" SecFileAssoc
+  
+  ; 비디오 파일 연결 예시 (.mp4, .avi, .mkv 등)
+  WriteRegStr HKCR ".mp4\OpenWithProgids" "${APP_NAME}.mp4" ""
+  WriteRegStr HKCR ".avi\OpenWithProgids" "${APP_NAME}.avi" ""
+  WriteRegStr HKCR ".mkv\OpenWithProgids" "${APP_NAME}.mkv" ""
+  WriteRegStr HKCR ".mov\OpenWithProgids" "${APP_NAME}.mov" ""
+  WriteRegStr HKCR ".wmv\OpenWithProgids" "${APP_NAME}.wmv" ""
+  
+  ; 프로그램 정보 등록
+  WriteRegStr HKCR "${APP_NAME}.VideoFile" "" "${APP_NAME} Video File"
+  WriteRegStr HKCR "${APP_NAME}.VideoFile\DefaultIcon" "" "$INSTDIR\${APP_EXE},0"
+  WriteRegStr HKCR "${APP_NAME}.VideoFile\shell\open\command" "" '"$INSTDIR\${APP_EXE}" "%1"'
+  
+SectionEnd
+
+;--------------------------------
+; Descriptions
+
+  ; 섹션 설명
+  LangString DESC_SecMain ${LANG_ENGLISH} "Core application files (required)"
+  LangString DESC_SecMain ${LANG_KOREAN} "핵심 애플리케이션 파일 (필수)"
+  
+  LangString DESC_SecStartMenu ${LANG_ENGLISH} "Create shortcuts in Start Menu"
+  LangString DESC_SecStartMenu ${LANG_KOREAN} "시작 메뉴에 바로가기 생성"
+  
+  LangString DESC_SecFileAssoc ${LANG_ENGLISH} "Associate video files with ${APP_NAME}"
+  LangString DESC_SecFileAssoc ${LANG_KOREAN} "비디오 파일을 ${APP_NAME}과 연결"
+  
+  !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} $(DESC_SecMain)
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecStartMenu} $(DESC_SecStartMenu)
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecFileAssoc} $(DESC_SecFileAssoc)
+  !insertmacro MUI_FUNCTION_DESCRIPTION_END
+
+;--------------------------------
+; Functions
+
+; 바탕화면 바로가기 생성 함수
+Function CreateDesktopShortcut
+  CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
+FunctionEnd
+
+;--------------------------------
+; Uninstaller
+
+Section "Uninstall"
+  
+  ; 파일들 삭제
+  Delete "$INSTDIR\${APP_EXE}"
+  Delete "$INSTDIR\*.dll"
+  Delete "$INSTDIR\Uninstall.exe"
+  
+  ; 폴더들 삭제
+  RMDir /r "$INSTDIR\platforms"
+  RMDir /r "$INSTDIR\styles"
+  RMDir /r "$INSTDIR\imageformats"
+  RMDir /r "$INSTDIR\qml"
+  RMDir /r "$INSTDIR\translations"
+  RMDir /r "$INSTDIR\assets"
+  
+  ; 설치 폴더 삭제
+  RMDir "$INSTDIR"
+  
+  ; 시작 메뉴 바로가기 삭제
+  Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
+  Delete "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk"
+  RMDir "$SMPROGRAMS\${APP_NAME}"
+  
+  ; 바탕화면 바로가기 삭제
+  Delete "$DESKTOP\${APP_NAME}.lnk"
+  
+  ; 레지스트리 정리
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
+  DeleteRegKey HKLM "Software\${APP_PUBLISHER}\${APP_NAME}"
+  
+  ; 파일 연결 제거
+  DeleteRegKey HKCR "${APP_NAME}.VideoFile"
+  DeleteRegValue HKCR ".mp4\OpenWithProgids" "${APP_NAME}.mp4"
+  DeleteRegValue HKCR ".avi\OpenWithProgids" "${APP_NAME}.avi"
+  DeleteRegValue HKCR ".mkv\OpenWithProgids" "${APP_NAME}.mkv"
+  DeleteRegValue HKCR ".mov\OpenWithProgids" "${APP_NAME}.mov"
+  DeleteRegValue HKCR ".wmv\OpenWithProgids" "${APP_NAME}.wmv"
+  
+SectionEnd 

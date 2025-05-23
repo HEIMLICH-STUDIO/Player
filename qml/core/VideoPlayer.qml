@@ -35,14 +35,14 @@ Item {
     // 프레임 변경 시 감지하여 전체 동기화 처리
     onCurrentFrameChanged: {
         // 현재 프레임 변경 시 로그 출력
-        console.log("VideoPlayer: Current frame changed to ->", currentFrame);
+        // console.log("VideoPlayer: Current frame changed to ->", currentFrame);
         
         // 관련 객체들 강제 동기화
         if (controlBar && controlBar.frameTimeline) {
             // 타임라인에 강제 업데이트가 필요한 경우 확인
             if (controlBar.frameTimeline.currentFrame !== currentFrame && 
                 !controlBar.frameTimeline.isDragging) {
-                console.log("VideoPlayer: Force updating timeline frame");
+                // console.log("VideoPlayer: Force updating timeline frame");
                 controlBar.frameTimeline.currentFrame = currentFrame;
             }
         }
@@ -100,21 +100,21 @@ Item {
         
         // 비디오 영역에서 프레임 변경될 때 호출
         function onOnFrameChangedEvent(frame) {
-            console.log("MPV Sync: Frame change detected from video area:", frame);
+            // console.log("MPV Sync: Frame change detected from video area:", frame);
 
             // 타임라인이 드래그 중이면 영상 측 업데이트를 잠시 무시하여
             // 사용자가 선택한 프레임을 우선시한다. 드래그 중인 프레임은
             // ControlBar에서 VideoArea로 직접 전달되므로 여기서는 무시한다.
             if (controlBar && controlBar.frameTimeline &&
                 controlBar.frameTimeline.isDragging) {
-                console.log("Timeline is dragging - ignoring MPV sync event");
+                // console.log("Timeline is dragging - ignoring MPV sync event");
                 return;
             }
             
             // 드래그 완료 직후 안정화 기간 동안도 MPV 싱크 이벤트 무시
             if (controlBar && controlBar.frameTimeline &&
                 (controlBar.frameTimeline.recentlyDragged || controlBar.frameTimeline.seekStabilizing)) {
-                console.log("Timeline in stabilization period - ignoring MPV sync event");
+                // console.log("Timeline in stabilization period - ignoring MPV sync event");
                 return;
             }
 

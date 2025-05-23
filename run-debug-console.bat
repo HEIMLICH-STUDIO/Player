@@ -1,7 +1,7 @@
 @echo off
 echo Checking if executable exists...
-if not exist "build\HYPER-PLAYER.exe" (
-    echo HYPER-PLAYER.exe not found in build directory!
+if not exist "build\Player-by-HEIMLICH.exe" (
+    echo Player-by-HEIMLICH.exe not found in build directory!
     pause
     exit /b 1
 )
@@ -18,9 +18,9 @@ if exist "external\libs\windows\bin\libmpv-2.dll" (
     echo WARNING: libmpv-2.dll not found in external\libs\windows\bin
 )
 
-echo Starting HYPER-PLAYER with debug console...
+echo Starting Player by HEIMLICH® with debug console...
 cd build
-start "HYPER-PLAYER Debug Console" cmd /k HYPER-PLAYER.exe
+start "Player by HEIMLICH® Debug Console" cmd /k Player-by-HEIMLICH.exe
 
 echo Application should be running in a separate window now.
 echo This console will remain open to capture any output.

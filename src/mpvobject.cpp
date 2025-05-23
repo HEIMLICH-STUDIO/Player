@@ -1,4 +1,5 @@
 #include "mpvobject.h"
+#include "splash.h"
 #include <stdexcept>
 #include <QtQuick/QQuickWindow>
 #include <QtGui/QOpenGLContext>
@@ -8,6 +9,13 @@
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QRegularExpression>
+#include <QRunnable>
+#include <QTimer>
+#include <QUrl>
+#include <QStandardPaths>
+#include <QQmlContext>
+#include <algorithm>
+#include <cmath>
 
 namespace {
 void on_mpv_events(void *ctx)
@@ -62,6 +70,9 @@ public:
             
             qDebug() << "MPV render context created successfully";
             mpv_render_context_set_update_callback(obj->mpv_context, on_mpv_redraw, obj);
+            
+            // 스플래시 스크린 닫기 - MPV가 준비됨 (안전한 방식)
+            requestCloseSplash();
         }
         
         // 고성능 프레임버퍼 객체 생성 설정

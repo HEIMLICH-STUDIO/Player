@@ -43,11 +43,53 @@ if not exist "build\qml\popups" mkdir "build\qml\popups"
 xcopy /Y /S "qml\popups\*" "build\qml\popups\"
 echo [INFO] Popups files copied.
 
+:: Create and copy splashWindow subdirectory
+if not exist "build\qml\splashWindow" mkdir "build\qml\splashWindow"
+xcopy /Y /S "qml\splashWindow\*" "build\qml\splashWindow\"
+echo [INFO] SplashWindow files copied.
+
+:: Create and copy components subdirectory
+if not exist "build\qml\components" mkdir "build\qml\components"
+xcopy /Y /S "qml\components\*" "build\qml\components\"
+echo [INFO] Components files copied.
+
+:: Create and copy controls subdirectory
+if not exist "build\qml\controls" mkdir "build\qml\controls"
+xcopy /Y /S "qml\controls\*" "build\qml\controls\"
+echo [INFO] Controls files copied.
+
+
+
+
+
+
 :: Create and copy assets directory (for icons)
 echo [INFO] Copying assets...
 if not exist "build\assets" mkdir "build\assets"
 if not exist "build\assets\icons" mkdir "build\assets\icons"
 xcopy /Y /S "assets\icons\*" "build\assets\icons\"
+
+:: Create and copy assets directory (for shaders)
+echo [INFO] Copying shaders...
+if not exist "build\assets" mkdir "build\assets"
+if not exist "build\assets\shaders" mkdir "build\assets\shaders"
+xcopy /Y /S "assets\shaders\*" "build\assets\shaders\"
+
+:: Create and copy assets directory (for fonts)
+echo [INFO] Copying fonts...
+if not exist "build\assets" mkdir "build\assets"
+if not exist "build\assets\fonts" mkdir "build\assets\fonts"
+xcopy /Y /S "assets\fonts\*" "build\assets\fonts\"
+
+:: Create and copy assets directory (for images)
+echo [INFO] Copying images...
+if not exist "build\assets" mkdir "build\assets"
+if not exist "build\assets\images" mkdir "build\assets\images"
+xcopy /Y /S "assets\images\*" "build\assets\images\"
+
+
+
+
 
 echo [INFO] All QML files and assets copied successfully!
 echo [INFO] Cleaning up temporary build directory 

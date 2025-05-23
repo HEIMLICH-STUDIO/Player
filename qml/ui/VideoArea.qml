@@ -376,7 +376,7 @@ Item {
                             frame = root.frames - 1;
                         }
                         
-                        console.log("MPV Sync: Frame change detected from video area:", frame);
+                        // console.log("MPV Sync: Frame change detected from video area:", frame);
                         root.frame = frame;
                         root.onFrameChangedEvent(frame);
                     }
@@ -672,8 +672,8 @@ Item {
                 var timePos = (adjustedFrame - 1) / fps; // 0-based 시간 위치 계산
                 var numericPos = Number(timePos.toFixed(6)); // 명시적 숫자로 변환
                 
-                console.log("VideoPlayer: Current frame changed to ->", targetFrame);
-                console.log("VideoPlayer: Force updating timeline frame");
+                // console.log("VideoPlayer: Current frame changed to ->", targetFrame);
+                // console.log("VideoPlayer: Force updating timeline frame");
                 console.log("MPV direct seek command:", numericPos, "(프레임:", adjustedFrame, ")");
                 
                 // 5. 항상 일시정지 상태로 변경 - 정확한 프레임 포지셔닝 위해

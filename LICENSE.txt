@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2023 HYPER-PLAYER
+Copyright (c) 2025 HEIMLICH
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -18,4 +18,29 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE. 
+SOFTWARE.
+
+========================================================================================
+
+Player by HEIMLICH® - Professional Video Player
+Professional video player for media analysis and frame-by-frame inspection
+
+Features:
+• Frame-by-frame navigation
+• Professional video analysis tools
+• High-resolution video support
+• Advanced playback controls
+• Multi-format support (MP4, AVI, MKV, MOV, WMV, etc.)
+• Customizable interface
+• Real-time video scopes and analysis
+
+System Requirements:
+• Windows 10 or later (64-bit)
+• DirectX 11 compatible graphics card
+• 4GB RAM minimum, 8GB recommended
+• 500MB free disk space for installation
+
+For support and updates, visit:
+https://github.com/heimlich/player-by-heimlich
+
+======================================================================================== 

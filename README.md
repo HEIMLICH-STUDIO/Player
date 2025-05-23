@@ -1,17 +1,83 @@
-# HYPER-PLAYER
+# Player by HEIMLICH®
 
-A cross-platform media player built with Qt, QML, and libmpv. Supports high-end codecs with hardware acceleration and features a beautiful, modern design.
+A professional cross-platform video player built with Qt, QML, and libmpv. Features a beautiful splash screen, custom icon, and professional installer system.
 
 ## Features
 
 - High-performance video playback via libmpv
 - Hardware acceleration support through mpv's hwdec auto
+- Professional splash screen with version information
+- Custom icon embedded in executable and installer
 - Beautiful, modern UI designed with QML
 - Cross-platform support (Windows, macOS, Linux)
+- Professional NSIS-based installer with file associations
+- Dynamic version management with Git integration
 - Media controls with keyboard shortcuts
 - Custom-styled volume and progress sliders
 - Dark/light theme support
 - Fullscreen mode
+
+## Supported Codecs and File Formats
+
+### Common Video Formats
+- Standard Video: `.mp4`, `.m4v`, `.mkv`, `.avi`, `.mov`, `.flv`, `.webm`, `.wmv`
+- Additional Video: `.asf`, `.rm`, `.rmvb`, `.mpg`, `.mpeg`, `.m2v`, `.3gp`, `.3g2`
+- Professional: `.f4v`, `.ogv`, `.ts`, `.mts`, `.m2ts`, `.vob`, `.divx`
+- Legacy Formats: `.dv`, `.gxf`, `.m1v`, `.m2v`, `.mxf`, `.nsv`, `.nuv`, `.rec`
+- Others: `.viv`, `.vivo`, `.fli`, `.flc`, `.vid`, `.vdr`
+
+### DVD/Blu-ray
+- DVD: `.ifo`, `.vob`
+- Blu-ray: `.bdmv`, `.mpls`, `.m2ts`, `.mts`
+
+### Professional Formats
+- Raw/Special: `.y4m`, `.yuv`, `.ivf`
+- Codec Streams: `.h264`, `.h265`, `.hevc`, `.264`, `.265`
+- Professional: `.raw`, `.avs`, `.avs2`, `.vpy`
+- Modern Codecs: `.vp8`, `.vp9`, `.av1`
+
+### Container Formats
+- Professional: `.nut`, `.mxf`, `.lavf`
+- Broadcast: `.wtv`, `.asf`, `.stream`
+
+### Playlists
+- Standard: `.m3u`, `.m3u8`, `.pls`, `.cue`
+
+## Quick Start
+
+### Windows (Recommended Method)
+
+1. **Prerequisites**: Install Qt 6, CMake, MinGW, and 7-Zip
+2. **One-Click Build**: Run the unified build script:
+   ```
+   .\build-with-installer.bat
+   ```
+
+This single script will:
+- Convert PNG icon to ICO format automatically
+- Build the application with embedded custom icon
+- Generate professional installer with dynamic versioning
+- Include all Qt dependencies and MPV libraries
+
+### Installation Results
+
+After running the build script, you'll get:
+- `Player-by-HEIMLICH.exe` - Main executable with custom icon
+- `Player by HEIMLICH®-Setup-v0.0.1.exe` - Professional installer package
+
+## Build System Features
+
+### Unified Build Process
+- **Icon Conversion**: Automatically converts `assets/Images/icon_win.png` to ICO format
+- **Dynamic Versioning**: Version numbers automatically sync between CMakeLists.txt, executable, and installer
+- **Professional Installer**: NSIS-based installer with custom branding and file associations
+
+### Version Management
+The build system automatically:
+- Extracts version from CMakeLists.txt
+- Includes Git commit hash and build date
+- Updates installer filename with current version
+- Embeds version info in executable properties
 
 ## Dependencies
 

@@ -92,7 +92,18 @@ Window {
     
     // 컴포넌트 초기화
     Component.onCompleted: {
-        console.log("MainWindow initialized")
+        console.log("Main window loaded");
+        console.log("Using VideoArea from:", (typeof VideoArea !== "undefined") ? "Available" : "Not available");
+        console.log("MPV support:", mpvSupported);
+        
+        // 명령줄에서 전달받은 초기 비디오 파일이 있으면 자동으로 로드
+        if (typeof initialVideoFile !== "undefined" && initialVideoFile !== "") {
+            console.log("Loading initial video file:", initialVideoFile);
+            // Qt.callLater를 사용하여 모든 컴포넌트가 초기화된 후에 파일 로드
+            Qt.callLater(function() {
+                videoPlayer.loadFile("file:///" + initialVideoFile);
+            });
+        }
         
         // 앱 시작 시 모든 컴포넌트가 로드된 후에 색상 초기화
         Qt.callLater(function() {

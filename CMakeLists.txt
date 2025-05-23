@@ -1,5 +1,50 @@
 cmake_minimum_required(VERSION 3.16)
-project(HYPER-PLAYER VERSION 1.0 LANGUAGES CXX)
+
+# 프로젝트 버전 정의
+set(PROJECT_VERSION_MAJOR 0)
+set(PROJECT_VERSION_MINOR 0)
+set(PROJECT_VERSION_PATCH 0)
+set(PROJECT_VERSION_BUILD 1)
+
+# Git 정보 가져오기 (선택사항)
+find_package(Git QUIET)
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_COMMIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --abbrev=0
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_TAG
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+endif()
+
+# 버전 문자열 생성
+if(GIT_TAG)
+    set(VERSION_STRING "${GIT_TAG}")
+    if(GIT_COMMIT_HASH)
+        set(VERSION_STRING "${VERSION_STRING}-${GIT_COMMIT_HASH}")
+    endif()
+else()
+    set(VERSION_STRING "v${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+    if(GIT_COMMIT_HASH)
+        set(VERSION_STRING "${VERSION_STRING}-${GIT_COMMIT_HASH}")
+    endif()
+endif()
+
+# 빌드 날짜 추가
+string(TIMESTAMP BUILD_DATE "%Y-%m-%d")
+set(VERSION_STRING "${VERSION_STRING} (${BUILD_DATE})")
+
+message(STATUS "Building Player by HEIMLICH® version: ${VERSION_STRING}")
+
+project(Player-by-HEIMLICH VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,7 +70,7 @@ endif()
 
 message(STATUS "Building for platform: ${PLATFORM_NAME}")
 
-find_package(Qt6 COMPONENTS Core Quick Gui OpenGL QuickControls2 REQUIRED)
+find_package(Qt6 COMPONENTS Core Quick Gui OpenGL QuickControls2 Widgets REQUIRED)
 
 # Check if MPV is available for the current platform
 set(MPV_FOUND FALSE)
@@ -88,27 +133,89 @@ endif()
 
 # Set project sources based on MPV availability
 if(MPV_FOUND)
-    message(STATUS "Building HYPER-PLAYER with MPV support")
-    set(PROJECT_SOURCES
-        src/main.cpp
-        src/mpvobject.cpp
-        src/mpvobject.h
-        src/timelinesync.cpp
-        src/timelinesync.h
-        qml.qrc
-    )
+    message(STATUS "Building Player by HEIMLICH® with MPV support")
+    if(WIN32)
+        # 아이콘 파일을 빌드 디렉토리로 복사
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
+            "${CMAKE_BINARY_DIR}/icon_win.ico"
+            COPYONLY
+        )
+        
+        # 추가 아이콘 위치에도 복사
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
+            "${CMAKE_SOURCE_DIR}/icon_win.ico"
+            COPYONLY
+        )
+        
+        # Windows 리소스 파일 템플릿 생성
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/resources.rc"
+            "${CMAKE_BINARY_DIR}/resources.rc"
+            @ONLY
+        )
+        
+        # 실행파일 생성 (리소스 파일 포함)
+        add_executable(${PROJECT_NAME} WIN32
+            src/main.cpp
+            src/mpvobject.cpp
+            src/mpvobject.h
+            src/timelinesync.cpp
+            src/timelinesync.h
+            qml.qrc
+            "${CMAKE_BINARY_DIR}/resources.rc"
+        )
+    else()
+        add_executable(${PROJECT_NAME}
+            src/main.cpp
+            src/mpvobject.cpp
+            src/mpvobject.h
+            src/timelinesync.cpp
+            src/timelinesync.h
+            qml.qrc
+        )
+    endif()
     
     # Define HAVE_MPV for conditional compilation
     add_compile_definitions(HAVE_MPV)
 else()
-    message(STATUS "Building HYPER-PLAYER (Basic Version without MPV)")
-    set(PROJECT_SOURCES
-        src/main.cpp
-        qml.qrc
-    )
+    message(STATUS "Building Player by HEIMLICH® (Basic Version without MPV)")
+    if(WIN32)
+        # 아이콘 파일을 빌드 디렉토리로 복사
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
+            "${CMAKE_BINARY_DIR}/icon_win.ico"
+            COPYONLY
+        )
+        
+        # 추가 아이콘 위치에도 복사
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
+            "${CMAKE_SOURCE_DIR}/icon_win.ico"
+            COPYONLY
+        )
+        
+        # Windows 리소스 파일 템플릿 생성
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/resources.rc"
+            "${CMAKE_BINARY_DIR}/resources.rc"
+            @ONLY
+        )
+        
+        # 실행파일 생성 (리소스 파일 포함)
+        add_executable(${PROJECT_NAME} WIN32
+            src/main.cpp
+            qml.qrc
+            "${CMAKE_BINARY_DIR}/resources.rc"
+        )
+    else()
+        add_executable(${PROJECT_NAME}
+            src/main.cpp
+            qml.qrc
+        )
+    endif()
 endif()
-
-qt_add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 
 # Link libraries
 if(MPV_FOUND)
@@ -119,6 +226,7 @@ if(MPV_FOUND)
         Qt6::Gui
         Qt6::OpenGL
         Qt6::QuickControls2
+        Qt6::Widgets
         ${MPV_LIBRARY}
     )
     
@@ -148,9 +256,52 @@ else()
         Qt6::Gui
         Qt6::OpenGL
         Qt6::QuickControls2
+        Qt6::Widgets
     )
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
-) 
+    VERSION_STRING="${VERSION_STRING}"
+    PROJECT_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    PROJECT_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    PROJECT_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+)
+
+# 동적 인스톨러 생성 시스템
+# installer.nsi.in 템플릿에서 실제 installer.nsi 생성
+configure_file(
+    "${CMAKE_SOURCE_DIR}/installer.nsi.in"
+    "${CMAKE_SOURCE_DIR}/installer.nsi"
+    @ONLY
+)
+
+# 인스톨러 생성을 위한 커스텀 타겟
+if(WIN32)
+    # NSIS 경로 찾기
+    find_program(NSIS_MAKENSIS
+        NAMES makensis
+        PATHS 
+            "C:/Program Files (x86)/NSIS"
+            "C:/Program Files/NSIS"
+            "$ENV{PROGRAMFILES}/NSIS"
+        DOC "NSIS makensis executable"
+    )
+    
+    if(NSIS_MAKENSIS)
+        message(STATUS "Found NSIS: ${NSIS_MAKENSIS}")
+        
+        # 인스톨러 생성 타겟
+        add_custom_target(installer
+            COMMAND ${NSIS_MAKENSIS} /V3 "${CMAKE_SOURCE_DIR}/installer.nsi"
+            DEPENDS ${PROJECT_NAME}
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            COMMENT "Creating installer with version ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
+        )
+        
+        message(STATUS "Installer target created. Use 'cmake --build . --target installer' to build installer")
+    else()
+        message(WARNING "NSIS not found. Installer target will not be available.")
+        message(STATUS "Install NSIS from: https://nsis.sourceforge.io/")
+    endif()
+endif() 

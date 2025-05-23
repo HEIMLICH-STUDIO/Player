@@ -123,6 +123,10 @@ public:
     Q_INVOKABLE QString frameToTimecode(int frame, int format = -1, const QString& customPattern = "") const;
     Q_INVOKABLE int timecodeToFrame(const QString& tc) const;
 
+    // 프레임 번호 변환 함수 추가
+    int displayFrameNumber(int internalFrame) const;
+    int internalFrameNumber(int displayFrame) const;
+
 public slots:
     void play();
     void pause();

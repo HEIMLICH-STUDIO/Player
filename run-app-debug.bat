@@ -1,7 +1,7 @@
 @echo off
 echo Checking if executable exists...
-if not exist "build\HYPER-PLAYER.exe" (
-    echo HYPER-PLAYER.exe not found in build directory!
+if not exist "build\Player-by-HEIMLICH.exe" (
+    echo Player-by-HEIMLICH.exe not found in build directory!
     pause
     exit /b 1
 )
@@ -18,9 +18,9 @@ if exist "external\libs\windows\bin\libmpv-2.dll" (
     echo WARNING: libmpv-2.dll not found in external\libs\windows\bin
 )
 
-echo Starting HYPER-PLAYER in console mode...
+echo Starting Player by HEIMLICH® in console mode...
 cd build
-HYPER-PLAYER.exe
+Player-by-HEIMLICH.exe
 
 echo Application exited with code %ERRORLEVEL%
 pause 

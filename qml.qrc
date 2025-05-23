@@ -31,6 +31,8 @@
         <file>qml/utils/qmldir</file>
         
         <!-- Assets -->
+        <file>assets/Images/HMLH-Player_IMG_splash.png</file>
+        <file>assets/Images/icon_win.ico</file>
         <file>assets/icons/play.svg</file>
         <file>assets/icons/pause.svg</file>
         <file>assets/icons/stop.svg</file>

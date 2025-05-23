@@ -28,7 +28,7 @@ ui_*.h
 *.qmlc
 *.jsc
 Makefile*
-*build-*
+# *build-*
 *.qm
 *.prl
 
@@ -54,6 +54,17 @@ CMakeLists.txt.user*
 /release/
 /vcpkg/
 /bin/
+/installer/
+
+# Output directory (build results)
+/output/
+
+# Generated files that may appear in root
+*.exe
+*.ico
+*.nsi
+error_log.txt
+*.zip
 
 # Visual Studio
 .vs/

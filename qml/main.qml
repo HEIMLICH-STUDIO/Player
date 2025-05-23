@@ -249,9 +249,18 @@ ApplicationWindow {
             settingsPanelOpen: settingsPanelVisible
             
             // Connect signals
-            onOpenFileRequested: fileDialog.open()
-            onToggleSettingsPanelRequested: toggleSettingsPanel()
-            onToggleFullscreenRequested: toggleFullscreen()
+            onOpenFileRequested: videoArea.openFile()
+            onPlayPauseRequested: videoArea.playPause()
+            onToggleSettingsPanelRequested: {
+                settingsPanelVisible = !settingsPanelVisible
+            }
+            onToggleFullscreenRequested: {
+                if (root.visibility === Window.FullScreen) {
+                    root.showNormal();
+                } else {
+                    root.showFullScreen();
+                }
+            }
             
             // Frame navigation handlers
             onFrameBackwardRequested: function(frames) {
@@ -273,13 +282,6 @@ ApplicationWindow {
                     
                     // 메인 윈도우 currentFrame도 즉시 업데이트 (UI 응답성)
                     root.currentFrame = frame;
-                }
-            }
-            
-            // Toggle play/pause
-            onPlayPauseRequested: {
-                if (videoArea) {
-                    videoArea.playPause();
                 }
             }
         }

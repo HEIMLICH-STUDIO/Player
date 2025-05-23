@@ -71,8 +71,8 @@ QtObject {
     
     // Timeline UI elements - professional video editor style
     readonly property color timelineBackgroundColor: isDarkTheme ? "#000000" : "#E9E9E9"
-    readonly property color timelineFrameColor: isDarkTheme ? "#1e1e1e" : "#BBBBBB"
-    readonly property color timelineMajorFrameColor: isDarkTheme ? "#252525" : "#888888" 
+    readonly property color timelineFrameColor: isDarkTheme ? "#282828" : "#BBBBBB"
+    readonly property color timelineMajorFrameColor: isDarkTheme ? "#303030" : "#888888" 
     readonly property color timelinePlayheadColor: "#FF453A" // Apple-inspired playhead
     readonly property color timelineActiveTrackColor: Qt.rgba(1.0, 1.0, 1.0, 0.15) // 투명한 흰색
     
