@@ -14,7 +14,7 @@ Window {
     height: 580
     minimumWidth: 480
     minimumHeight: 520
-    color: "#000000"  // Pure black background
+    color: ThemeManager.dialogColor
     
     // 모달 설정
     modality: Qt.ApplicationModal
@@ -30,22 +30,34 @@ Window {
     // MPV 참조
     property var mpvObject: null
     
-    // 테두리 제거한 메인 영역
+    // 테두리와 그림자 효과
     Rectangle {
         id: contentArea
         anchors.fill: parent
-        color: "#000000"  // Pure black
+        color: ThemeManager.dialogColor
+        border.width: 1
+        border.color: ThemeManager.borderColor
+        radius: 8
         
         // 메인 레이아웃
         ColumnLayout {
             anchors.fill: parent
+            anchors.margins: 1
             spacing: 0
             
-            // 헤더 영역 - 심플하게
+            // 헤더 영역
             Rectangle {
                 Layout.fillWidth: true
                 height: 54
-                color: "#000000"  // Black background
+                color: ThemeManager.tabBarColor
+                radius: 7
+                // 상단만 둥글게
+                Rectangle {
+                    width: parent.width
+                    height: parent.height / 2
+                    anchors.bottom: parent.bottom
+                    color: parent.color
+                }
                 
                 TabBar {
                     id: tabBar
@@ -66,20 +78,27 @@ Window {
                         
                         contentItem: Text {
                             text: parent.text
-                            font.pixelSize: 14
-                            font.family: "Segoe UI"
-                            font.weight: parent.checked ? Font.Medium : Font.Normal
-                            color: parent.checked ? "#FFFFFF" : "#808080"
+                            font.pixelSize: 15
+                            font.weight: parent.checked ? Font.DemiBold : Font.Normal
+                            color: parent.checked ? ThemeManager.accentColor : ThemeManager.tabButtonTextColor
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         
                         background: Rectangle {
                             color: "transparent"
+                            
+                            Rectangle {
+                                width: parent.width
+                                height: 3
+                                anchors.bottom: parent.bottom
+                                color: parent.parent.checked ? ThemeManager.accentColor : "transparent"
+                                radius: 1.5
+                            }
                         }
                     }
                     
-                    // 타임라인 탭
+                    // 타임라인 탭 (새로 추가)
                     TabButton {
                         height: 54
                         text: "Timeline"
@@ -87,16 +106,23 @@ Window {
                         
                         contentItem: Text {
                             text: parent.text
-                            font.pixelSize: 14
-                            font.family: "Segoe UI"
-                            font.weight: parent.checked ? Font.Medium : Font.Normal
-                            color: parent.checked ? "#FFFFFF" : "#808080"
+                            font.pixelSize: 15
+                            font.weight: parent.checked ? Font.DemiBold : Font.Normal
+                            color: parent.checked ? ThemeManager.accentColor : ThemeManager.tabButtonTextColor
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         
                         background: Rectangle {
                             color: "transparent"
+                            
+                            Rectangle {
+                                width: parent.width
+                                height: 3
+                                anchors.bottom: parent.bottom
+                                color: parent.parent.checked ? ThemeManager.accentColor : "transparent"
+                                radius: 1.5
+                            }
                         }
                     }
                     
@@ -108,16 +134,23 @@ Window {
                         
                         contentItem: Text {
                             text: parent.text
-                            font.pixelSize: 14
-                            font.family: "Segoe UI"
-                            font.weight: parent.checked ? Font.Medium : Font.Normal
-                            color: parent.checked ? "#FFFFFF" : "#808080"
+                            font.pixelSize: 15
+                            font.weight: parent.checked ? Font.DemiBold : Font.Normal
+                            color: parent.checked ? ThemeManager.accentColor : ThemeManager.tabButtonTextColor
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         
                         background: Rectangle {
                             color: "transparent"
+                            
+                            Rectangle {
+                                width: parent.width
+                                height: 3
+                                anchors.bottom: parent.bottom
+                                color: parent.parent.checked ? ThemeManager.accentColor : "transparent"
+                                radius: 1.5
+                            }
                         }
                     }
                     
@@ -129,16 +162,23 @@ Window {
                         
                         contentItem: Text {
                             text: parent.text
-                            font.pixelSize: 14
-                            font.family: "Segoe UI"
-                            font.weight: parent.checked ? Font.Medium : Font.Normal
-                            color: parent.checked ? "#FFFFFF" : "#808080"
+                            font.pixelSize: 15
+                            font.weight: parent.checked ? Font.DemiBold : Font.Normal
+                            color: parent.checked ? ThemeManager.accentColor : ThemeManager.tabButtonTextColor
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         
                         background: Rectangle {
                             color: "transparent"
+                            
+                            Rectangle {
+                                width: parent.width
+                                height: 3
+                                anchors.bottom: parent.bottom
+                                color: parent.parent.checked ? ThemeManager.accentColor : "transparent"
+                                radius: 1.5
+                            }
                         }
                     }
                     
@@ -150,19 +190,33 @@ Window {
                         
                         contentItem: Text {
                             text: parent.text
-                            font.pixelSize: 14
-                            font.family: "Segoe UI"
-                            font.weight: parent.checked ? Font.Medium : Font.Normal
-                            color: parent.checked ? "#FFFFFF" : "#808080"
+                            font.pixelSize: 15
+                            font.weight: parent.checked ? Font.DemiBold : Font.Normal
+                            color: parent.checked ? ThemeManager.accentColor : ThemeManager.tabButtonTextColor
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         
                         background: Rectangle {
                             color: "transparent"
+                            
+                            Rectangle {
+                                width: parent.width
+                                height: 3
+                                anchors.bottom: parent.bottom
+                                color: parent.parent.checked ? ThemeManager.accentColor : "transparent"
+                                radius: 1.5
+                            }
                         }
                     }
                 }
+            }
+            
+            // 구분선
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: ThemeManager.borderColor
             }
             
             // 탭 컨텐츠
@@ -176,15 +230,30 @@ Window {
                 Item {
                     id: generalTab
                     
-                    // 스크롤바 숨긴 설정 목록
+                    // 설정 목록을 스크롤 가능하게
                     ScrollView {
                         anchors.fill: parent
                         anchors.margins: 20
                         clip: true
                         
-                        // 스크롤바 완전히 숨기기
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        // 스크롤바 스타일링
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                            width: ThemeManager.scrollBarWidth
+                            
+                            background: Rectangle {
+                                color: ThemeManager.scrollBarBgColor
+                                radius: ThemeManager.scrollBarRadius
+                            }
+                            
+                            contentItem: Rectangle {
+                                implicitWidth: ThemeManager.scrollBarWidth
+                                radius: ThemeManager.scrollBarRadius
+                                color: parent.pressed ? ThemeManager.scrollBarActiveColor : 
+                                               parent.hovered ? ThemeManager.scrollBarHoverColor : 
+                                               ThemeManager.scrollBarColor
+                            }
+                        }
                         
                         Column {
                             width: parent.width
@@ -204,8 +273,7 @@ Window {
                                         
                                         Text {
                                             text: "Dark Mode"
-                                            color: "#FFFFFF"
-                                            font.family: "Segoe UI"
+                                            color: ThemeManager.textColor
                                             font.pixelSize: 14
                                             Layout.fillWidth: true
                                         }
@@ -234,8 +302,7 @@ Window {
                                         
                                         Text {
                                             text: "Loop Playback"
-                                            color: "#FFFFFF"
-                                            font.family: "Segoe UI"
+                                            color: ThemeManager.textColor
                                             font.pixelSize: 14
                                             Layout.fillWidth: true
                                         }
@@ -255,19 +322,34 @@ Window {
                     }
                 }
                 
-                // 타임라인 설정 탭
+                // 타임라인 설정 탭 (새로 추가)
                 Item {
                     id: timelineTab
                     
-                    // 스크롤바 숨긴 설정 목록
+                    // 설정 목록을 스크롤 가능하게
                     ScrollView {
                         anchors.fill: parent
                         anchors.margins: 20
                         clip: true
                         
-                        // 스크롤바 완전히 숨기기
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        // 스크롤바 스타일링
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                            width: ThemeManager.scrollBarWidth
+                            
+                            background: Rectangle {
+                                color: ThemeManager.scrollBarBgColor
+                                radius: ThemeManager.scrollBarRadius
+                            }
+                            
+                            contentItem: Rectangle {
+                                implicitWidth: ThemeManager.scrollBarWidth
+                                radius: ThemeManager.scrollBarRadius
+                                color: parent.pressed ? ThemeManager.scrollBarActiveColor : 
+                                               parent.hovered ? ThemeManager.scrollBarHoverColor : 
+                                               ThemeManager.scrollBarColor
+                            }
+                        }
                         
                         Column {
                             width: parent.width
@@ -292,8 +374,7 @@ Window {
                                             
                                             Text {
                                                 text: "Timecode Format"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -329,8 +410,7 @@ Window {
                                             
                                             Text {
                                                 text: "Custom Pattern"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -352,7 +432,7 @@ Window {
                                         Text {
                                             visible: customFormatField.visible
                                             text: "Pattern tokens: %H (hour), %M (minute), %S (second), %f (frame), %t (total frames)"
-                                            color: "#808080"
+                                            color: ThemeManager.secondaryTextColor
                                             font.pixelSize: 12
                                             wrapMode: Text.Wrap
                                             width: parent.width
@@ -365,8 +445,7 @@ Window {
                                             
                                             Text {
                                                 text: "Use Embedded Timecode (if available)"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -399,8 +478,7 @@ Window {
                                             
                                             Text {
                                                 text: "Frame Numbering"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -426,8 +504,7 @@ Window {
                                             
                                             Text {
                                                 text: "Timecode Offset (frames)"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -463,8 +540,7 @@ Window {
                                             
                                             Text {
                                                 text: "Video Standard"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -510,8 +586,7 @@ Window {
                                             
                                             Text {
                                                 text: "Custom Frame Rate"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -559,8 +634,7 @@ Window {
                                             
                                             Text {
                                                 text: "Use Drop-Frame Timecode (NTSC)"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -586,8 +660,7 @@ Window {
                                             
                                             Text {
                                                 text: "Timecode Source"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -631,8 +704,7 @@ Window {
                                             
                                             Text {
                                                 text: "Show Frame Ticks"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -656,8 +728,7 @@ Window {
                                             
                                             Text {
                                                 text: "Major Tick Interval (frames)"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -705,15 +776,30 @@ Window {
                 Item {
                     id: videoTab
                     
-                    // 스크롤바 숨긴 설정 목록
+                    // 설정 목록을 스크롤 가능하게
                     ScrollView {
                         anchors.fill: parent
                         anchors.margins: 20
                         clip: true
                         
-                        // 스크롤바 완전히 숨기기
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        // 스크롤바 스타일링
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                            width: ThemeManager.scrollBarWidth
+                            
+                            background: Rectangle {
+                                color: ThemeManager.scrollBarBgColor
+                                radius: ThemeManager.scrollBarRadius
+                            }
+                            
+                            contentItem: Rectangle {
+                                implicitWidth: ThemeManager.scrollBarWidth
+                                radius: ThemeManager.scrollBarRadius
+                                color: parent.pressed ? ThemeManager.scrollBarActiveColor : 
+                                               parent.hovered ? ThemeManager.scrollBarHoverColor : 
+                                               ThemeManager.scrollBarColor
+                            }
+                        }
                         
                         Column {
                             width: parent.width
@@ -738,8 +824,7 @@ Window {
                                             
                                             Text {
                                                 text: "Playback Speed"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -764,8 +849,7 @@ Window {
                                             
                                             Text {
                                                 text: "Hardware Acceleration"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                             }
@@ -794,8 +878,7 @@ Window {
                                         
                                         Text {
                                             text: "Frame Numbering"
-                                            color: "#FFFFFF"
-                                            font.family: "Segoe UI"
+                                            color: ThemeManager.textColor
                                             font.pixelSize: 14
                                             Layout.fillWidth: true
                                         }
@@ -820,15 +903,30 @@ Window {
                 Item {
                     id: advancedTab
                     
-                    // 스크롤바 숨긴 설정 목록
+                    // 설정 목록을 스크롤 가능하게
                     ScrollView {
                         anchors.fill: parent
                         anchors.margins: 20
                         clip: true
                         
-                        // 스크롤바 완전히 숨기기
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        // 스크롤바 스타일링
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                            width: ThemeManager.scrollBarWidth
+                            
+                            background: Rectangle {
+                                color: ThemeManager.scrollBarBgColor
+                                radius: ThemeManager.scrollBarRadius
+                            }
+                            
+                            contentItem: Rectangle {
+                                implicitWidth: ThemeManager.scrollBarWidth
+                                radius: ThemeManager.scrollBarRadius
+                                color: parent.pressed ? ThemeManager.scrollBarActiveColor : 
+                                               parent.hovered ? ThemeManager.scrollBarHoverColor : 
+                                               ThemeManager.scrollBarColor
+                            }
+                        }
                         
                         Column {
                             width: parent.width
@@ -853,8 +951,7 @@ Window {
                                             
                                             Text {
                                                 text: "Cache Seconds"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                                 
@@ -892,8 +989,7 @@ Window {
                                             
                                             Text {
                                                 text: "Demuxer Readahead Seconds"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                                 
@@ -940,8 +1036,7 @@ Window {
                                             
                                             Text {
                                                 text: "High Precision Seeking"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                                 
@@ -990,8 +1085,7 @@ Window {
                                             
                                             Text {
                                                 text: "Seek Mode"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                                 
@@ -1049,8 +1143,7 @@ Window {
                                             
                                             Text {
                                                 text: "Cache Size (MB)"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                                 
@@ -1089,8 +1182,7 @@ Window {
                                             
                                             Text {
                                                 text: "Initial Cache Duration (ms)"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
+                                                color: ThemeManager.textColor
                                                 font.pixelSize: 14
                                                 Layout.fillWidth: true
                                                 
@@ -1131,194 +1223,267 @@ Window {
                 Item {
                     id: aboutTab
                     
-                    // 스크롤바 숨긴 스크롤뷰
+                    // 설정 목록을 스크롤 가능하게
                     ScrollView {
                         anchors.fill: parent
-                        anchors.margins: 40
+                        anchors.margins: 20
                         clip: true
                         
-                        // 스크롤바 완전히 숨기기
-                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                        
-                        // 중앙정렬된 컨텐츠
-                        Item {
-                            width: Math.max(parent.parent.width - 80, 400)
-                            height: Math.max(parent.parent.height - 80, contentColumn.height)
+                        // 스크롤바 스타일링
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                            width: ThemeManager.scrollBarWidth
                             
-                            Column {
-                                id: contentColumn
-                                anchors.centerIn: parent
-                                width: Math.min(parent.width, 400)
-                                spacing: 40
+                            background: Rectangle {
+                                color: ThemeManager.scrollBarBgColor
+                                radius: ThemeManager.scrollBarRadius
+                            }
+                            
+                            contentItem: Rectangle {
+                                implicitWidth: ThemeManager.scrollBarWidth
+                                radius: ThemeManager.scrollBarRadius
+                                color: parent.pressed ? ThemeManager.scrollBarActiveColor : 
+                                               parent.hovered ? ThemeManager.scrollBarHoverColor : 
+                                               ThemeManager.scrollBarColor
+                            }
+                        }
+                        
+                        Column {
+                            width: parent.width
+                            spacing: 24
+                            
+                            // 앱 로고 영역
+                            Rectangle {
+                                width: parent.width
+                                height: 180
+                                radius: 8
+                                color: ThemeManager.isDarkTheme ? Qt.rgba(0.12, 0.12, 0.12, 1.0) : Qt.rgba(0.97, 0.97, 0.97, 1.0)
                                 
-                                // 앱 로고 및 제목 영역
                                 Column {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    spacing: 16
+                                    anchors.centerIn: parent
+                                    spacing: 12
                                     
-                                    // 앱 아이콘
+                                    // 앱 아이콘 (선택사항)
                                     Image {
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         source: "../../assets/Images/icon_win.png"
-                                        width: 64
-                                        height: 64
+                                        width: 48
+                                        height: 48
+                                        visible: source != ""
                                         fillMode: Image.PreserveAspectFit
-                                        smooth: true
                                     }
                                     
-                                    // 앱 제목
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "Player by HEIMLICH®"
-                                        font.family: "Segoe UI"
-                                        font.pixelSize: 24
-                                        font.weight: Font.Light
-                                        color: "#FFFFFF"
-                                        horizontalAlignment: Text.AlignHCenter
+                                        text: appName || "Player by HEIMLICH®"
+                                        font.pixelSize: 28
+                                        font.weight: Font.Bold
+                                        color: ThemeManager.accentColor
                                     }
                                     
-                                    // 버전 정보
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "v0.0.0-732ca37 (2025-05-24)"
-                                        font.family: "Segoe UI"
-                                        font.pixelSize: 14
-                                        color: "#808080"
-                                        horizontalAlignment: Text.AlignHCenter
-                                    }
-                                    
-                                    // 설명
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "Professional Video Player"
-                                        font.family: "Segoe UI"
+                                        text: appVersion || "v0.0.0"
                                         font.pixelSize: 16
-                                        color: "#CCCCCC"
-                                        horizontalAlignment: Text.AlignHCenter
+                                        color: ThemeManager.secondaryTextColor
+                                    }
+                                    
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: appDescription || "Professional Video Player"
+                                        font.pixelSize: 14
+                                        color: ThemeManager.textColor
+                                        font.weight: Font.Medium
                                     }
                                 }
+                            }
+                            
+                            // 기능 카드
+                            SettingsCard {
+                                title: "Features"
                                 
-                                // 기능 목록
                                 Column {
-                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    width: parent.width
                                     spacing: 12
                                     
-                                    Repeater {
-                                        model: [
-                                            "Hardware-accelerated video playback",
-                                            "Frame-by-frame analysis tools",
-                                            "Advanced media controls",
-                                            "Multiple video format support"
-                                        ]
-                                        
-                                        Row {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            spacing: 12
-                                            
-                                            Text {
-                                                text: "✓"
-                                                color: "#FFFFFF"
-                                                font.family: "Segoe UI"
-                                                font.pixelSize: 14
-                                                font.weight: Font.Medium
-                                            }
-                                            
-                                            Text {
-                                                text: modelData
-                                                color: "#CCCCCC"
-                                                font.family: "Segoe UI"
-                                                font.pixelSize: 14
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                // 기술 정보
-                                Column {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    spacing: 8
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "Technical Information"
-                                        font.family: "Segoe UI"
-                                        font.pixelSize: 16
-                                        font.weight: Font.Medium
-                                        color: "#FFFFFF"
-                                    }
-                                    
-                                    Column {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        spacing: 6
-                                        
+                                    Row {
+                                        spacing: 8
                                         Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: "Engine: MPV Media Player"
-                                            font.family: "Segoe UI"
-                                            font.pixelSize: 13
-                                            color: "#AAAAAA"
-                                        }
-                                        
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: "Framework: Qt 6 with QML"
-                                            font.family: "Segoe UI"
-                                            font.pixelSize: 13
-                                            color: "#AAAAAA"
-                                        }
-                                        
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: "Platform: Windows (x64)"
-                                            font.family: "Segoe UI"
-                                            font.pixelSize: 13
-                                            color: "#AAAAAA"
-                                        }
-                                    }
-                                }
-                                
-                                // 회사 정보
-                                Column {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    spacing: 8
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "Company Information"
-                                        font.family: "Segoe UI"
-                                        font.pixelSize: 16
-                                        font.weight: Font.Medium
-                                        color: "#FFFFFF"
-                                    }
-                                    
-                                    Column {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        spacing: 4
-                                        
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: "Developed by HEIMLICH"
-                                            font.family: "Segoe UI"
+                                            text: "✓"
+                                            color: ThemeManager.accentColor
                                             font.pixelSize: 14
-                                            color: "#CCCCCC"
+                                            font.weight: Font.Bold
                                         }
-                                        
                                         Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: "Professional Video Technology Solutions"
-                                            font.family: "Segoe UI"
-                                            font.pixelSize: 13
-                                            color: "#AAAAAA"
+                                            text: "Hardware-accelerated video playback"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
                                         }
-                                        
+                                    }
+                                    
+                                    Row {
+                                        spacing: 8
                                         Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: "© 2025 HEIMLICH. All rights reserved."
-                                            font.family: "Segoe UI"
-                                            font.pixelSize: 12
-                                            color: "#808080"
+                                            text: "✓"
+                                            color: ThemeManager.accentColor
+                                            font.pixelSize: 14
+                                            font.weight: Font.Bold
                                         }
+                                        Text {
+                                            text: "Frame-by-frame analysis tools"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
+                                        }
+                                    }
+                                    
+                                    Row {
+                                        spacing: 8
+                                        Text {
+                                            text: "✓"
+                                            color: ThemeManager.accentColor
+                                            font.pixelSize: 14
+                                            font.weight: Font.Bold
+                                        }
+                                        Text {
+                                            text: "Advanced media controls"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
+                                        }
+                                    }
+                                    
+                                    Row {
+                                        spacing: 8
+                                        Text {
+                                            text: "✓"
+                                            color: ThemeManager.accentColor
+                                            font.pixelSize: 14
+                                            font.weight: Font.Bold
+                                        }
+                                        Text {
+                                            text: "Professional-grade performance"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
+                                        }
+                                    }
+                                    
+                                    Row {
+                                        spacing: 8
+                                        Text {
+                                            text: "✓"
+                                            color: ThemeManager.accentColor
+                                            font.pixelSize: 14
+                                            font.weight: Font.Bold
+                                        }
+                                        Text {
+                                            text: "Multiple video format support"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // 기술 정보 카드
+                            SettingsCard {
+                                title: "Technical Information"
+                                
+                                Column {
+                                    width: parent.width
+                                    spacing: 12
+                                    
+                                    Row {
+                                        width: parent.width
+                                        Text {
+                                            text: "Engine:"
+                                            width: 80
+                                            color: ThemeManager.secondaryTextColor
+                                            font.pixelSize: 14
+                                        }
+                                        Text {
+                                            text: "MPV Media Player"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
+                                        }
+                                    }
+                                    
+                                    Row {
+                                        width: parent.width
+                                        Text {
+                                            text: "Framework:"
+                                            width: 80
+                                            color: ThemeManager.secondaryTextColor
+                                            font.pixelSize: 14
+                                        }
+                                        Text {
+                                            text: "Qt 6 with QML"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
+                                        }
+                                    }
+                                    
+                                    Row {
+                                        width: parent.width
+                                        Text {
+                                            text: "Platform:"
+                                            width: 80
+                                            color: ThemeManager.secondaryTextColor
+                                            font.pixelSize: 14
+                                        }
+                                        Text {
+                                            text: "Windows (x64)"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
+                                        }
+                                    }
+                                    
+                                    Row {
+                                        width: parent.width
+                                        Text {
+                                            text: "License:"
+                                            width: 80
+                                            color: ThemeManager.secondaryTextColor
+                                            font.pixelSize: 14
+                                        }
+                                        Text {
+                                            text: "Proprietary"
+                                            color: ThemeManager.textColor
+                                            font.pixelSize: 14
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // 회사 정보 카드
+                            SettingsCard {
+                                title: "Company Information"
+                                
+                                Column {
+                                    width: parent.width
+                                    spacing: 16
+                                    
+                                    Text {
+                                        width: parent.width
+                                        text: "Developed by " + (appCompany || "HEIMLICH")
+                                        color: ThemeManager.textColor
+                                        font.pixelSize: 14
+                                        font.weight: Font.Medium
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
+                                    
+                                    Text {
+                                        width: parent.width
+                                        text: "Professional Video Technology Solutions"
+                                        color: ThemeManager.secondaryTextColor
+                                        font.pixelSize: 13
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
+                                    
+                                    Text {
+                                        width: parent.width
+                                        text: appCopyright || "© 2025 HEIMLICH. All rights reserved."
+                                        color: ThemeManager.secondaryTextColor
+                                        font.pixelSize: 12
+                                        horizontalAlignment: Text.AlignHCenter
                                     }
                                 }
                             }
@@ -1331,7 +1496,16 @@ Window {
             Rectangle {
                 Layout.fillWidth: true
                 height: 72
-                color: "#000000"  // Black background
+                color: ThemeManager.tabBarColor
+                
+                // 하단만 둥글게
+                radius: 7
+                Rectangle {
+                    width: parent.width
+                    height: parent.height / 2
+                    anchors.top: parent.top
+                    color: parent.color
+                }
                 
                 RowLayout {
                     anchors.right: parent.right
@@ -1346,18 +1520,17 @@ Window {
                         height: 40
                         
                         background: Rectangle {
-                            color: cancelButton.down ? "#2A2A2A" : 
-                                   cancelButton.hovered ? "#1A1A1A" : 
-                                   "#0A0A0A"
+                            color: cancelButton.down ? Qt.darker(ThemeManager.tabButtonColor, 1.1) : 
+                                   cancelButton.hovered ? Qt.lighter(ThemeManager.tabButtonColor, 1.1) : 
+                                   ThemeManager.tabButtonColor
                             radius: 6
                             border.width: 1
-                            border.color: "#333333"
+                            border.color: ThemeManager.borderColor
                         }
                         
                         contentItem: Text {
                             text: cancelButton.text
-                            color: "#FFFFFF"
-                            font.family: "Segoe UI"
+                            color: ThemeManager.textColor
                             font.pixelSize: 14
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -1375,16 +1548,15 @@ Window {
                         height: 40
                         
                         background: Rectangle {
-                            color: okButton.down ? "#333333" : 
-                                   okButton.hovered ? "#4A4A4A" : 
-                                   "#FFFFFF"
+                            color: okButton.down ? ThemeManager.buttonPressedColor : 
+                                   okButton.hovered ? ThemeManager.buttonHoverColor : 
+                                   ThemeManager.buttonColor
                             radius: 6
                         }
                         
                         contentItem: Text {
                             text: okButton.text
-                            color: okButton.down || okButton.hovered ? "#FFFFFF" : "#000000"
-                            font.family: "Segoe UI"
+                            color: ThemeManager.buttonTextColor
                             font.pixelSize: 14
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -1399,28 +1571,28 @@ Window {
         }
     }
     
-    // 설정 섹션 컴포넌트 - 심플하게
+    // 설정 섹션 컴포넌트
     component SettingsSection: Column {
         property string title: ""
         spacing: 16
         
         Text {
             text: title
-            color: "#FFFFFF"
-            font.family: "Segoe UI"
+            color: ThemeManager.accentColor
             font.pixelSize: 18
-            font.weight: Font.Medium
+            font.weight: Font.DemiBold
         }
     }
     
-    // 설정 카드 컴포넌트 - 블랙&화이트 디자인
+    // 설정 카드 컴포넌트
     component SettingsCard: Rectangle {
         property string title: ""
         width: parent.width
         height: contentColumn.height + 32
-        radius: 0  // 완전히 평평하게
-        color: "transparent"  // 배경 투명
-        border.width: 0  // 테두리 제거
+        radius: 8
+        color: ThemeManager.isDarkTheme ? Qt.rgba(0.12, 0.12, 0.12, 1.0) : Qt.rgba(0.97, 0.97, 0.97, 1.0)
+        border.width: 1
+        border.color: ThemeManager.isDarkTheme ? Qt.rgba(0.2, 0.2, 0.2, 1.0) : Qt.rgba(0.85, 0.85, 0.85, 1.0)
         
         Column {
             id: contentColumn
@@ -1433,10 +1605,9 @@ Window {
             Text {
                 visible: title !== ""
                 text: title
-                color: "#CCCCCC"
-                font.family: "Segoe UI"
+                color: ThemeManager.secondaryTextColor
                 font.pixelSize: 15
-                font.weight: Font.Normal
+                font.weight: Font.Medium
             }
             
             default property alias content: container.data

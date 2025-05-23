@@ -18,6 +18,7 @@
 #include <QPainter>
 #include <QIcon>
 #include <QFileInfo>
+#include <QCoreApplication>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -211,7 +212,7 @@ public slots:
     void closeSplash() {
         if (splash) {
             qDebug() << "=== MPV READY - CLOSING SPLASH ===";
-            splash->setLoadingText("MPV Ready!");
+            splash->setLoadingText("Player is Ready!");
             QTimer::singleShot(100, this, [this]() {
                 if (splash) {
                     qDebug() << "=== QT SPLASH SCREEN CLOSING ===";
@@ -296,34 +297,54 @@ int main(int argc, char *argv[])
     
     // 명령줄 인수 처리 - 비디오 파일 경로 확인
     QString videoFilePath;
-    QStringList args = app.arguments();
+    QStringList args = QCoreApplication::arguments(); // argc/argv 변경 문제 방지
     
+    qDebug() << "Application arguments count:" << args.size();
     qDebug() << "Command line arguments:" << args;
     
     // 첫 번째 인수는 실행 파일 경로이므로 두 번째부터 확인
     if (args.size() > 1) {
+        // 파일 경로가 따옴표로 둘러싸여 있을 수 있으므로 제거
         QString potentialFile = args[1];
+        if (potentialFile.startsWith('"') && potentialFile.endsWith('"')) {
+            potentialFile = potentialFile.mid(1, potentialFile.length() - 2);
+        }
+        
         QFileInfo fileInfo(potentialFile);
+        qDebug() << "Checking file:" << potentialFile;
+        qDebug() << "File exists:" << fileInfo.exists();
+        qDebug() << "Is file:" << fileInfo.isFile();
         
         // 파일이 존재하고 비디오 파일인지 확인
         if (fileInfo.exists() && fileInfo.isFile()) {
+            // MPV가 지원하는 모든 비디오/오디오 확장자
             QStringList videoExtensions = {
-                "mp4", "avi", "mkv", "mov", "wmv", "flv", "webm", "m4v", 
-                "3gp", "3g2", "asf", "divx", "f4v", "m2ts", "mts", "ogv", 
-                "rm", "rmvb", "ts", "vob", "xvid", "mpg", "mpeg", "m1v", 
-                "m2v", "mpe", "mpv", "dat", "nsv"
+                // 일반 비디오
+                "mp4", "m4v", "mkv", "avi", "mov", "flv", "webm", "wmv",
+                "asf", "rm", "rmvb", "mpg", "mpeg", "m2v", "3gp", "3g2",
+                "f4v", "ogv", "ts", "mts", "m2ts", "vob", "divx", "xvid",
+                "dv", "gxf", "m1v", "mxf", "nsv", "nuv", "rec", "viv",
+                "vivo", "fli", "flc", "vid", "vdr",
+                // 컨테이너
+                "nut", "lavf", "wtv", "stream",
+                // 오디오
+                "mp3", "aac", "flac", "ogg", "wav", "wma", "m4a", "opus"
             };
             
             QString extension = fileInfo.suffix().toLower();
+            qDebug() << "File extension:" << extension;
+            
             if (videoExtensions.contains(extension)) {
                 videoFilePath = fileInfo.absoluteFilePath();
-                qDebug() << "Video file to open:" << videoFilePath;
+                qDebug() << "Valid video file to open:" << videoFilePath;
             } else {
-                qDebug() << "File is not a supported video format:" << extension;
+                qDebug() << "File is not a supported media format:" << extension;
             }
         } else {
             qDebug() << "File does not exist or is not a file:" << potentialFile;
         }
+    } else {
+        qDebug() << "No command line arguments provided (normal startup)";
     }
     
     // 애플리케이션 아이콘 설정 (실행파일 및 창 아이콘)
@@ -364,24 +385,74 @@ int main(int argc, char *argv[])
     
     // Qt 스플래시 스크린 생성 및 표시
     QString imagePath;
+    QPixmap splashPixmap;
     
-    // 스플래시 이미지 경로 찾기
-    if (currentDir.exists("assets/Images/HMLH-Player_IMG_splash.png")) {
-        imagePath = currentDir.absoluteFilePath("assets/Images/HMLH-Player_IMG_splash.png");
-    } else if (currentDir.exists("build/assets/Images/HMLH-Player_IMG_splash.png")) {
-        imagePath = currentDir.absoluteFilePath("build/assets/Images/HMLH-Player_IMG_splash.png");
+    qDebug() << "Attempting to load splash image...";
+    
+    // 1. 먼저 Qt 리소스 시스템에서 시도 (가장 확실한 방법)
+    splashPixmap = QPixmap(":assets/Images/HMLH-Player_IMG_splash.png");
+    if (!splashPixmap.isNull()) {
+        qDebug() << "Splash image loaded from Qt resources successfully. Size:" << splashPixmap.size();
     } else {
-        imagePath = "assets/Images/HMLH-Player_IMG_splash.png";
+        qDebug() << "Qt resources loading failed, trying file system...";
+        
+        // 2. 애플리케이션 실행 파일이 있는 디렉토리에서 찾기 (설치된 환경)
+        QString appDir = QCoreApplication::applicationDirPath();
+        qDebug() << "Application directory for assets search:" << appDir;
+        
+        QStringList searchPaths = {
+            appDir + "/assets/Images/HMLH-Player_IMG_splash.png",
+            appDir + "/HMLH-Player_IMG_splash.png",
+            appDir + "/../assets/Images/HMLH-Player_IMG_splash.png",
+            // 3. 현재 작업 디렉토리에서 찾기 (개발 환경용 - 마지막에 시도)
+            currentDir.absoluteFilePath("assets/Images/HMLH-Player_IMG_splash.png"),
+            currentDir.absoluteFilePath("build/assets/Images/HMLH-Player_IMG_splash.png")
+        };
+        
+        for (const QString& path : searchPaths) {
+            qDebug() << "Trying splash image path:" << path;
+            if (QFile::exists(path)) {
+                splashPixmap = QPixmap(path);
+                if (!splashPixmap.isNull()) {
+                    qDebug() << "Splash image loaded from:" << path << "Size:" << splashPixmap.size();
+                    imagePath = path;
+                    break;
+                } else {
+                    qDebug() << "File exists but failed to load as pixmap:" << path;
+                }
+            } else {
+                qDebug() << "File does not exist:" << path;
+            }
+        }
     }
     
-    qDebug() << "Loading splash image from:" << imagePath;
-    
-    QPixmap splashPixmap(imagePath);
     if (splashPixmap.isNull()) {
-        qDebug() << "Failed to load splash image, using default";
-        // 기본 스플래시 생성 (검은 배경에 텍스트)
+        qDebug() << "Failed to load splash image, creating default";
+        
+        // 더 안전한 기본 스플래시 생성
         splashPixmap = QPixmap(600, 400);
-        splashPixmap.fill(Qt::black);
+        splashPixmap.fill(QColor(30, 30, 35)); // 다크 배경
+        
+        // 간단한 텍스트만 추가 (QPainter 오류 방지)
+        try {
+            QPainter painter(&splashPixmap);
+            if (painter.isActive()) {
+                painter.setRenderHint(QPainter::Antialiasing);
+                
+                // 브랜드 텍스트
+                QFont titleFont = painter.font();
+                titleFont.setPointSize(28);
+                titleFont.setBold(true);
+                painter.setFont(titleFont);
+                painter.setPen(Qt::white);
+                painter.drawText(splashPixmap.rect(), Qt::AlignCenter, "HEIMLICH®\nPlayer");
+                painter.end();
+            }
+        } catch (...) {
+            qDebug() << "Warning: Could not draw text on splash screen";
+        }
+        
+        qDebug() << "Default splash created with size:" << splashPixmap.size();
     } else {
         qDebug() << "Splash image loaded successfully. Size:" << splashPixmap.size();
         
@@ -460,30 +531,72 @@ int main(int argc, char *argv[])
     // QML 모듈 등록 및 기본 속성 설정
     QQmlApplicationEngine engine;
     
-    // QML 파일 경로 설정
+    // QML 파일 경로 설정 - 애플리케이션 실행 파일 기준으로 설정
     QString qmlRootPath;
+    QString appDir = QCoreApplication::applicationDirPath();
     
-    // 개발 환경에서는 프로젝트 디렉토리의 qml 폴더 사용
-    if (currentDir.exists("qml/core/MainWindow.qml")) {
+    qDebug() << "Application directory:" << appDir;
+    qDebug() << "Current working directory:" << QDir::currentPath();
+    
+    // 1. 설치된 환경: 애플리케이션 실행 파일과 같은 디렉토리의 qml 폴더
+    if (QDir(appDir + "/qml").exists() && QFile::exists(appDir + "/qml/core/MainWindow.qml")) {
+        qmlRootPath = appDir + "/qml";
+        qDebug() << "Using installed QML path (app dir):" << qmlRootPath;
+    }
+    // 2. 개발 환경: 프로젝트 디렉토리의 qml 폴더
+    else if (currentDir.exists("qml/core/MainWindow.qml")) {
         qmlRootPath = currentDir.absoluteFilePath("qml");
+        qDebug() << "Using development QML path (current dir):" << qmlRootPath;
     } 
-    // 빌드 환경에서는 build/qml 폴더 사용
+    // 3. 빌드 환경: build/qml 폴더
     else if (currentDir.exists("build/qml/core/MainWindow.qml")) {
         qmlRootPath = currentDir.absoluteFilePath("build/qml");
+        qDebug() << "Using build QML path:" << qmlRootPath;
     }
-    // 배포 환경에서는 실행 파일과 같은 위치의 qml 폴더 사용
+    // 4. 대체 경로: 애플리케이션 디렉토리 기준으로 한 번 더 시도
+    else if (QDir(appDir + "/../qml").exists()) {
+        qmlRootPath = QDir(appDir + "/../qml").absolutePath();
+        qDebug() << "Using alternative QML path:" << qmlRootPath;
+    }
+    // 5. 최후 수단: 현재 디렉토리의 qml 폴더 (없어도 설정)
     else {
         qmlRootPath = currentDir.absoluteFilePath("qml");
+        qDebug() << "Using fallback QML path:" << qmlRootPath;
     }
     
-    qDebug() << "QML root path:" << qmlRootPath;
+    qDebug() << "Final QML root path:" << qmlRootPath;
     
-    // Import 경로 추가
+    // QML 파일이 실제로 존재하는지 확인
+    QString mainWindowQml = qmlRootPath + "/core/MainWindow.qml";
+    if (!QFile::exists(mainWindowQml)) {
+        qDebug() << "ERROR: MainWindow.qml not found at:" << mainWindowQml;
+        qDebug() << "Trying to find QML files in other locations...";
+        
+        // 추가 검색 경로들
+        QStringList searchPaths = {
+            appDir + "/qml/core/MainWindow.qml",
+            appDir + "/../qml/core/MainWindow.qml", 
+            currentDir.absoluteFilePath("qml/core/MainWindow.qml"),
+            currentDir.absoluteFilePath("build/qml/core/MainWindow.qml")
+        };
+        
+        for (const QString& path : searchPaths) {
+            if (QFile::exists(path)) {
+                qmlRootPath = QFileInfo(path).absolutePath();
+                qmlRootPath.remove("/core"); // /core 부분 제거하여 루트 경로 얻기
+                qDebug() << "Found QML files at:" << qmlRootPath;
+                break;
+            }
+        }
+    }
+    
+    // Import 경로 추가 - 애플리케이션 디렉토리 기준
     engine.addImportPath(qmlRootPath);
+    engine.addImportPath(appDir + "/qml");  // 추가 안전장치
     
-    // 중요: 이 경로를 먼저 지정해야 QML 모듈이 제대로 로드됨
-    QDir::setCurrent(qmlRootPath);
-    qDebug() << "Current directory set to:" << QDir::currentPath();
+    // 작업 디렉토리를 QML 디렉토리로 변경하지 않음 (영상 파일 경로 문제 방지)
+    // QDir::setCurrent(qmlRootPath); // 이 줄 제거!
+    qDebug() << "Working directory preserved as:" << QDir::currentPath();
     
 #ifdef HAVE_MPV
     engine.rootContext()->setContextProperty("hasMpvSupport", true);

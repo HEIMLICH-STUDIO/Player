@@ -94,15 +94,79 @@ Window {
     Component.onCompleted: {
         console.log("Main window loaded");
         console.log("Using VideoArea from:", (typeof VideoArea !== "undefined") ? "Available" : "Not available");
-        console.log("MPV support:", mpvSupported);
+        console.log("MPV support:", typeof hasMpvSupport !== "undefined" ? hasMpvSupport : "Unknown");
         
         // 명령줄에서 전달받은 초기 비디오 파일이 있으면 자동으로 로드
-        if (typeof initialVideoFile !== "undefined" && initialVideoFile !== "") {
-            console.log("Loading initial video file:", initialVideoFile);
-            // Qt.callLater를 사용하여 모든 컴포넌트가 초기화된 후에 파일 로드
-            Qt.callLater(function() {
-                videoPlayer.loadFile("file:///" + initialVideoFile);
-            });
+        if (typeof initialVideoFile !== "undefined" && initialVideoFile !== "" && initialVideoFile !== null) {
+            console.log("=== INITIAL VIDEO FILE DETECTED ===");
+            console.log("Raw file path:", initialVideoFile);
+            
+            // 더 안전한 파일 로드 방식 - 모든 컴포넌트가 초기화될 때까지 기다림
+            var fileLoadTimer = Qt.createQmlObject('
+                import QtQuick;
+                Timer {
+                    property int retryCount: 0
+                    property int maxRetries: 20
+                    interval: 200
+                    repeat: true
+                    running: true
+                    
+                    onTriggered: {
+                        retryCount++;
+                        console.log("Attempt", retryCount, "to load initial video file");
+                        
+                        if (videoPlayer && videoPlayer.loadFile) {
+                            // 파일 경로 정규화
+                            var filePath = initialVideoFile;
+                            console.log("Processing file path:", filePath);
+                            
+                            // Windows 경로 처리
+                            if (Qt.platform.os === "windows") {
+                                // 백슬래시를 슬래시로 변환
+                                filePath = filePath.replace(/\\\\/g, "/");
+                                
+                                // C: 드라이브 경로 처리
+                                if (filePath.match(/^[A-Za-z]:/)) {
+                                    filePath = "file:///" + filePath;
+                                } else if (!filePath.startsWith("file://")) {
+                                    filePath = "file:///" + filePath;
+                                }
+                            } else {
+                                // Unix 계열 시스템
+                                if (!filePath.startsWith("file://")) {
+                                    filePath = "file://" + filePath;
+                                }
+                            }
+                            
+                            console.log("=== LOADING INITIAL VIDEO ===");
+                            console.log("Final normalized path:", filePath);
+                            
+                            try {
+                                videoPlayer.loadFile(filePath);
+                                console.log("✓ Initial video file loading initiated successfully");
+                                running = false;
+                                destroy();
+                            } catch (error) {
+                                console.log("✗ Error loading initial video file:", error);
+                                if (retryCount >= maxRetries) {
+                                    console.log("✗ Max retries reached, giving up");
+                                    running = false;
+                                    destroy();
+                                }
+                            }
+                        } else {
+                            console.log("VideoPlayer not ready yet, retrying... (attempt", retryCount + "/" + maxRetries + ")");
+                            if (retryCount >= maxRetries) {
+                                console.log("✗ VideoPlayer failed to initialize after", maxRetries, "attempts");
+                                running = false;
+                                destroy();
+                            }
+                        }
+                    }
+                }
+            ', root);
+        } else {
+            console.log("No initial video file provided - normal startup");
         }
         
         // 앱 시작 시 모든 컴포넌트가 로드된 후에 색상 초기화

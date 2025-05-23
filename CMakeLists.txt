@@ -237,16 +237,64 @@ if(MPV_FOUND)
             "${MPV_DLL}"
             $<TARGET_FILE_DIR:${PROJECT_NAME}>
         )
+        
+        # Copy assets folder to build directory for installer
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+            COMMENT "Copying assets folder to build directory"
+        )
+        
+        # Copy QML folder to build directory for installer
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/qml"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
+            COMMENT "Copying QML folder to build directory"
+        )
     elseif(APPLE AND EXISTS "${MPV_DLL}")
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${MPV_DLL}"
             $<TARGET_FILE_DIR:${PROJECT_NAME}>
         )
+        
+        # Copy assets folder to build directory for installer (macOS)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+            COMMENT "Copying assets folder to build directory"
+        )
+        
+        # Copy QML folder to build directory for installer (macOS)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/qml"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
+            COMMENT "Copying QML folder to build directory"
+        )
+        
         # Set macOS bundle properties if needed
         set_target_properties(${PROJECT_NAME} PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/macos/Info.plist
+        )
+    else()
+        # Copy assets and QML folders even without MPV DLL (for other platforms)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+            COMMENT "Copying assets folder to build directory"
+        )
+        
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/qml"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
+            COMMENT "Copying QML folder to build directory"
         )
     endif()
 else()
@@ -257,6 +305,21 @@ else()
         Qt6::OpenGL
         Qt6::QuickControls2
         Qt6::Widgets
+    )
+    
+    # Copy assets and QML folders to build directory even without MPV
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/assets"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+        COMMENT "Copying assets folder to build directory"
+    )
+    
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/qml"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
+        COMMENT "Copying QML folder to build directory"
     )
 endif()
 
