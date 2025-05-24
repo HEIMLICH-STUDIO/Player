@@ -18,6 +18,9 @@ Rectangle {
     property int totalFrames: 0
     property real fps: 24.0
     
+    // TimelineSync 객체 참조 (중앙 동기화 허브)
+    property var timelineSync: null
+    
     // 오버플로우 방지를 위한 안전한 currentFrame 처리 (수정됨)
     onCurrentFrameChanged: {
         // 극단적인 오버플로우만 즉시 보정 (5프레임 이상 초과)
@@ -107,6 +110,38 @@ Rectangle {
     
     // 시그널 연결 중복 방지를 위한 플래그
     property bool _signalsConnected: false
+    
+    // TimelineSync 연결 및 동기화
+    onTimelineSyncChanged: {
+        if (timelineSync) {
+            console.log("ControlBar: TimelineSync connected");
+            
+            // TimelineSync에서 데이터 가져오기
+            timelineSync.currentFrameChanged.connect(function(frame) {
+                if (currentFrame !== frame) {
+                    currentFrame = frame;
+                }
+            });
+            
+            timelineSync.totalFramesChanged.connect(function(frames) {
+                if (totalFrames !== frames) {
+                    totalFrames = frames;
+                }
+            });
+            
+            timelineSync.fpsChanged.connect(function(newFps) {
+                if (fps !== newFps) {
+                    fps = newFps;
+                }
+            });
+            
+            timelineSync.playingStateChanged.connect(function(playing) {
+                if (isPlaying !== playing) {
+                    isPlaying = playing;
+                }
+            });
+        }
+    }
     
     // MPV 객체가 변경될 때 메타데이터 초기화 및 이벤트 연결
     onMpvObjectChanged: {
@@ -487,6 +522,9 @@ Rectangle {
             
             // 중요: MPV 객체 전달 - 반드시 null이 아닌지 검증
             mpvObject: root.mpvObject
+            
+            // TimelineSync 객체 전달 (중앙 동기화 허브)
+            timelineSync: root.timelineSync
             
             // currentFrame 변경 감지 - 타임라인 내부 변경이 외부로 전달되도록
             onCurrentFrameChanged: {

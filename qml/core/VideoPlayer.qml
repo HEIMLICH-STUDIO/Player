@@ -7,6 +7,9 @@ import "../ui"
 import "../utils"
 import "../widgets"
 
+// TimelineSync 네이티브 클래스 import
+import app.sync 1.0
+
 // Main video player component
 Item {
     id: root
@@ -31,6 +34,37 @@ Item {
     property alias statusBar: statusBar
     property bool isFullscreen: false
     property bool isPlaying: videoArea ? videoArea.isPlaying : false
+    
+    // 중앙 동기화 객체 - 모든 UI 컴포넌트가 이를 통해 동기화
+    property alias timelineSync: timelineSync
+    
+    // TimelineSync 객체 생성 (C++ 클래스)
+    TimelineSync {
+        id: timelineSync
+        
+        // TimelineSync의 프레임 변경을 VideoPlayer 상태에 동기화
+        onCurrentFrameChanged: {
+            if (root.currentFrame !== currentFrame) {
+                root.currentFrame = currentFrame;
+            }
+        }
+        
+        onTotalFramesChanged: {
+            if (root.totalFrames !== totalFrames) {
+                root.totalFrames = totalFrames;
+            }
+        }
+        
+        onFpsChanged: {
+            if (root.fps !== fps) {
+                root.fps = fps;
+            }
+        }
+        
+        Component.onCompleted: {
+            console.log("TimelineSync object created successfully");
+        }
+    }
     
     // 프레임 변경 시 감지하여 전체 동기화 처리
     onCurrentFrameChanged: {
@@ -74,6 +108,14 @@ Item {
         if (player !== _cachedMpvObject) {
             console.log("VideoPlayer: New mpvPlayer object detected");
             _cachedMpvObject = player;
+            
+            // TimelineSync에 MPV 객체 연결 (최우선)
+            Qt.callLater(function() {
+                if (timelineSync && player) {
+                    console.log("VideoPlayer: Connecting MPV to TimelineSync");
+                    timelineSync.connectMpv(player);
+                }
+            });
             
             // ControlBar에 새로운 MPV 객체 전달 (지연 후)
             Qt.callLater(function() {
@@ -337,6 +379,9 @@ Item {
             // 중요: MPV 객체 직접 연결 - 좀 더 안전하게 구현
             mpvObject: getMpvObject()
             
+            // TimelineSync 객체 전달 (중앙 동기화 허브)
+            timelineSync: root.timelineSync
+            
             // MPV 객체 연결 상태 확인 및 강제 초기화
             Component.onCompleted: {
                 console.log("ControlBar initialized, MPV object connection confirmed");
@@ -419,6 +464,9 @@ Item {
             fps: root.fps
             currentFile: root.currentFile
             mpvObject: getMpvObject()  // mpv 객체 참조 전달
+            
+            // TimelineSync 객체 전달 (중앙 동기화 허브)
+            timelineSync: root.timelineSync
         }
     }
     

@@ -17,8 +17,9 @@ Rectangle {
     property real fps: 24.0
     property string currentFile: ""
     property string timecode: "00:00:00:00"
-  property int timecodeFormat: 0 // 0: SMPTE Non-Drop, 1: SMPTE Drop-Frame, 2: HH:MM:SS.MS, 3: Frames Only, 4: Custom
+    property int timecodeFormat: 0 // 0: SMPTE Non-Drop, 1: SMPTE Drop-Frame, 2: HH:MM:SS.MS, 3: Frames Only, 4: Custom
     property var mpvObject: null  // mpv 객체 참조
+    property var timelineSync: null // TimelineSync 객체 (중앙 동기화 허브)
     property bool useEmbeddedTimecode: false
     property int timecodeOffset: 0
     property string customTimecodePattern: "%H:%M:%S.%f"
@@ -47,12 +48,23 @@ Rectangle {
             elide: Text.ElideMiddle
         }
         
-        // 현재 프레임 / 총 프레임
+        // 현재 프레임 / 총 프레임 (TimelineSync에서 직접 가져오기)
         Text {
-            text: "Frame: " + currentFrame + " / " + totalFrames
+            text: "Frame: " + (timelineSync ? timelineSync.currentFrame : currentFrame) + " / " + (timelineSync ? timelineSync.totalFrames : totalFrames)
             color: ThemeManager.textColor
             font.family: ThemeManager.monoFont
             font.pixelSize: ThemeManager.smallFontSize
+            
+            // TimelineSync 연결 시 실시간 업데이트
+            Connections {
+                target: timelineSync
+                function onCurrentFrameChanged() {
+                    // 자동으로 업데이트됩니다 (바인딩을 통해)
+                }
+                function onTotalFramesChanged() {
+                    // 자동으로 업데이트됩니다 (바인딩을 통해)
+                }
+            }
         }
         
         // 타임코드

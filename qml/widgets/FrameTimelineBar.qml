@@ -12,6 +12,7 @@ Item {
     
     // Essential properties
     property var mpvObject: null // MPV 플레이어 객체
+    property var timelineSync: null // TimelineSync 객체 (중앙 동기화 허브)
     
     // 양방향 바인딩 개선을 위한 핵심 변경사항
     property int currentFrame: 0
@@ -89,6 +90,40 @@ Item {
         }
     }
     
+    // TimelineSync 연결 및 동기화
+    onTimelineSyncChanged: {
+        if (timelineSync) {
+            console.log("FrameTimelineBar: TimelineSync connected");
+            
+            // TimelineSync에서 데이터 동기화
+            timelineSync.currentFrameChanged.connect(function(frame) {
+                if (!isDragging && currentFrame !== frame) {
+                    currentFrame = frame;
+                    _internalFrame = frame;
+                    updatePlayhead();
+                }
+            });
+            
+            timelineSync.totalFramesChanged.connect(function(frames) {
+                if (totalFrames !== frames) {
+                    totalFrames = frames;
+                }
+            });
+            
+            timelineSync.fpsChanged.connect(function(newFps) {
+                if (fps !== newFps) {
+                    fps = newFps;
+                }
+            });
+            
+            timelineSync.playingStateChanged.connect(function(playing) {
+                if (isPlaying !== playing) {
+                    isPlaying = playing;
+                }
+            });
+        }
+    }
+    
     // 양방향 바인딩을 위한 핵심 변경사항
     // 외부 프레임이 변경되면 내부 프레임도 업데이트
     onCurrentFrameChanged: {
@@ -120,8 +155,13 @@ Item {
         
         // 드래그 중이 아니고, 안정화 중이 아니고, 현재 프레임과 차이가 있을 때만 외부에 알림
         if (!isDragging && !seekStabilizing && _internalFrame !== currentFrame) {
-            // 여기서 바로 currentFrame을 업데이트하지 않고 신호로 보냄
-            seekRequested(_internalFrame);
+            // TimelineSync를 통한 시크 요청 (우선)
+            if (timelineSync) {
+                timelineSync.seekToFrame(_internalFrame, true);
+            } else {
+                // 여기서 바로 currentFrame을 업데이트하지 않고 신호로 보냄
+                seekRequested(_internalFrame);
+            }
         }
     }
     

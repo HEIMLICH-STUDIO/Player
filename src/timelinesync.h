@@ -74,6 +74,8 @@ private slots:
     void onMpvDurationChanged(double duration);
     void onMpvPlayingChanged(bool playing);
     void onMpvPauseChanged(bool paused);
+    void onMpvEndReached();
+    void onMpvFrameCountChanged(int frameCount);
     
     // 내부 동기화 핸들러
     void handleSyncTimer();

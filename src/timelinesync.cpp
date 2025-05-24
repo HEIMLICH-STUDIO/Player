@@ -48,6 +48,8 @@ void TimelineSync::connectMpv(MpvObject* mpv)
     connect(m_mpv, &MpvObject::durationChanged, this, &TimelineSync::onMpvDurationChanged);
     connect(m_mpv, &MpvObject::playingChanged, this, &TimelineSync::onMpvPlayingChanged);
     connect(m_mpv, &MpvObject::pauseChanged, this, &TimelineSync::onMpvPauseChanged);
+    connect(m_mpv, &MpvObject::endReached, this, &TimelineSync::onMpvEndReached);
+    connect(m_mpv, &MpvObject::frameCountChanged, this, &TimelineSync::onMpvFrameCountChanged);
     
     // 초기 상태 업데이트
     m_position = m_mpv->position();
@@ -398,18 +400,35 @@ void TimelineSync::updateFrameInfo()
     }
 }
 
-// 총 프레임 수 계산
+// 총 프레임 수 계산 - MPV 네이티브 값 우선 사용
 void TimelineSync::calculateTotalFrames()
 {
-    if (m_duration <= 0 || m_fps <= 0) return;
+    if (!m_mpv || m_duration <= 0 || m_fps <= 0) return;
     
-    // 총 프레임 수 계산 (올림)
-    int frames = std::ceil(m_duration * m_fps);
+    int frames = 0;
+    
+    // 1. MPV의 실제 프레임 카운트 사용 (최우선)
+    QVariant frameCountVar = m_mpv->getProperty("estimated-frame-count");
+    if (frameCountVar.isValid() && frameCountVar.toInt() > 0) {
+        frames = frameCountVar.toInt();
+        qDebug() << "TimelineSync: Using MPV estimated-frame-count:" << frames;
+    } else {
+        // 2. MPV 객체의 frameCount() 메서드 사용
+        frames = m_mpv->frameCount();
+        if (frames > 0) {
+            qDebug() << "TimelineSync: Using MPV frameCount():" << frames;
+        } else {
+            // 3. 계산 방식 (fallback)
+            frames = std::ceil(m_duration * m_fps);
+            qDebug() << "TimelineSync: Using calculated frames:" << frames;
+        }
+    }
     
     // 변경되었으면 신호 발생
     if (m_totalFrames != frames) {
         m_totalFrames = frames;
         emit totalFramesChanged(m_totalFrames);
+        qDebug() << "TimelineSync: Total frames updated to:" << m_totalFrames;
     }
 }
 
@@ -486,4 +505,50 @@ double TimelineSync::frameToPosition(int frame) const
 int TimelineSync::positionToFrame(double position) const
 {
     return calculateFrameFromPosition(position);
+}
+
+// MPV EOF 이벤트 핸들러
+void TimelineSync::onMpvEndReached()
+{
+    QMutexLocker locker(&m_syncMutex);
+    
+    qDebug() << "TimelineSync: EOF reached, handling end of video";
+    
+    // 재생 중지
+    m_isPlaying = false;
+    emit playingStateChanged(m_isPlaying);
+    
+    // 안전한 마지막 프레임으로 이동 (마지막에서 2-3프레임 앞)
+    if (m_totalFrames > 3) {
+        int safeEndFrame = m_totalFrames - 3;
+        m_currentFrame = safeEndFrame;
+        emit currentFrameChanged(m_currentFrame);
+        
+        // 위치도 업데이트
+        m_position = calculatePositionFromFrame(safeEndFrame);
+        emit positionChanged(m_position);
+        
+        qDebug() << "TimelineSync: Moved to safe end frame:" << safeEndFrame;
+    }
+    
+    // EOF 신호 발생
+    emit seekCompleted();
+}
+
+// MPV 프레임 카운트 변경 핸들러
+void TimelineSync::onMpvFrameCountChanged(int frameCount)
+{
+    QMutexLocker locker(&m_syncMutex);
+    
+    if (m_totalFrames != frameCount && frameCount > 0) {
+        qDebug() << "TimelineSync: Frame count updated from MPV:" << frameCount;
+        m_totalFrames = frameCount;
+        emit totalFramesChanged(m_totalFrames);
+        
+        // 현재 프레임이 범위를 벗어났으면 조정
+        if (m_currentFrame >= m_totalFrames) {
+            m_currentFrame = m_totalFrames - 1;
+            emit currentFrameChanged(m_currentFrame);
+        }
+    }
 } 
