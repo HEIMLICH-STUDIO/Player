@@ -1,16 +1,16 @@
 @echo off
 echo Checking if executable exists...
-if not exist "build\Player-by-HEIMLICH.exe" (
+if not exist "..\..\build\Player-by-HEIMLICH.exe" (
     echo Player-by-HEIMLICH.exe not found in build directory!
     pause
     exit /b 1
 )
 
 echo Making sure the MPV DLL is copied...
-if exist "external\libs\windows\bin\libmpv-2.dll" (
-    if not exist "build\libmpv-2.dll" (
+if exist "..\..\external\libs\windows\bin\libmpv-2.dll" (
+    if not exist "..\..\build\libmpv-2.dll" (
         echo Copying libmpv-2.dll to build directory...
-        copy "external\libs\windows\bin\libmpv-2.dll" "build\" /Y
+        copy "..\..\external\libs\windows\bin\libmpv-2.dll" "..\..\build\" /Y
     ) else (
         echo libmpv-2.dll already exists in build directory.
     )
@@ -19,8 +19,9 @@ if exist "external\libs\windows\bin\libmpv-2.dll" (
 )
 
 echo Starting Player by HEIMLICH® with debug console...
-cd build
+cd ..\..\build
 start "Player by HEIMLICH® Debug Console" cmd /k Player-by-HEIMLICH.exe
+cd ..\batch\windows
 
 echo Application should be running in a separate window now.
 echo This console will remain open to capture any output.

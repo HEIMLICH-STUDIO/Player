@@ -66,21 +66,6 @@ ScrollView {
                 font.pixelSize: 14
                 color: textColor
                 topPadding: 8
-                
-                // 아이콘 추가
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: parent.right
-                    anchors.leftMargin: 8
-                    spacing: 5
-                    
-                    Text {
-                        text: "\uf1c8" // 비디오 아이콘 (FA 스타일)
-                        font.family: "FontAwesome"
-                        font.pixelSize: 14
-                        color: secondaryColor
-                    }
-                }
             }
             
             GridLayout {
@@ -199,21 +184,6 @@ ScrollView {
                 font.pixelSize: 14
                 color: textColor
                 topPadding: 8
-                
-                // 아이콘 추가
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: parent.right
-                    anchors.leftMargin: 8
-                    spacing: 5
-                    
-                    Text {
-                        text: "\uf51f" // 프레임 아이콘 (FA 스타일)
-                        font.family: "FontAwesome"
-                        font.pixelSize: 14
-                        color: secondaryColor
-                    }
-                }
             }
             
             ColumnLayout {
@@ -235,8 +205,8 @@ ScrollView {
                     
                     RadioButton {
                         id: zeroBasedBtn
-                        text: qsTr("Zero-based (0 to N-1)")
-                        checked: mpvPlayer ? !mpvPlayer.oneBasedFrameNumbers : true
+                        text: qsTr("Zero-based (0 to 171)")
+                        checked: mpvPlayer ? !mpvPlayer.oneBasedFrameNumbers : false
                         
                         contentItem: Text {
                             text: parent.text
@@ -249,15 +219,25 @@ ScrollView {
                         
                         onCheckedChanged: {
                             if (checked && mpvPlayer) {
-                                mpvPlayer.oneBasedFrameNumbers = false;
+                                try {
+                                    mpvPlayer.setProperty("oneBasedFrameNumbers", false);
+                                    console.log("Set to zero-based frame numbering (0-170)");
+                                } catch (e) {
+                                    console.warn("Cannot set oneBasedFrameNumbers property:", e);
+                                    try {
+                                        mpvPlayer.command(["set", "oneBasedFrameNumbers", "no"]);
+                                    } catch (e2) {
+                                        console.error("Failed to set oneBasedFrameNumbers:", e2);
+                                    }
+                                }
                             }
                         }
                     }
                     
                     RadioButton {
                         id: oneBasedBtn
-                        text: qsTr("One-based (1 to N)")
-                        checked: mpvPlayer ? mpvPlayer.oneBasedFrameNumbers : false
+                        text: qsTr("One-based (1 to 172)")
+                        checked: mpvPlayer ? mpvPlayer.oneBasedFrameNumbers : true
                         
                         contentItem: Text {
                             text: parent.text
@@ -270,7 +250,17 @@ ScrollView {
                         
                         onCheckedChanged: {
                             if (checked && mpvPlayer) {
-                                mpvPlayer.oneBasedFrameNumbers = true;
+                                try {
+                                    mpvPlayer.setProperty("oneBasedFrameNumbers", true);
+                                    console.log("Set to one-based frame numbering (1-171)");
+                                } catch (e) {
+                                    console.warn("Cannot set oneBasedFrameNumbers property:", e);
+                                    try {
+                                        mpvPlayer.command(["set", "oneBasedFrameNumbers", "yes"]);
+                                    } catch (e2) {
+                                        console.error("Failed to set oneBasedFrameNumbers:", e2);
+                                    }
+                                }
                             }
                         }
                     }
@@ -287,7 +277,7 @@ ScrollView {
                         id: infoText
                         anchors.fill: parent
                         anchors.margins: 8
-                        text: qsTr("Zero-based numbering starts from 0, while one-based starts from 1. Choose based on your workflow preference.")
+                        text: qsTr("Zero-based: 0-171 (172 total frames). One-based: 1-172 (172 total frames).")
                         color: "#CCCCCC"
                         font.pixelSize: 11
                         font.family: "Segoe UI"
@@ -336,21 +326,6 @@ ScrollView {
                 font.pixelSize: 14
                 color: textColor
                 topPadding: 8
-                
-                // 아이콘 추가
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: parent.right
-                    anchors.leftMargin: 8
-                    spacing: 5
-                    
-                    Text {
-                        text: "\uf04b" // 플레이 아이콘 (FA 스타일)
-                        font.family: "FontAwesome"
-                        font.pixelSize: 14
-                        color: accentColor
-                    }
-                }
             }
             
             ColumnLayout {
@@ -519,21 +494,6 @@ ScrollView {
                 font.pixelSize: 14
                 color: textColor
                 topPadding: 8
-                
-                // 아이콘 추가
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: parent.right
-                    anchors.leftMargin: 8
-                    spacing: 5
-                    
-                    Text {
-                        text: "\uf1de" // 설정 아이콘 (FA 스타일)
-                        font.family: "FontAwesome"
-                        font.pixelSize: 14
-                        color: secondaryColor
-                    }
-                }
             }
             
             ColumnLayout {
@@ -556,7 +516,16 @@ ScrollView {
                     
                     onCheckedChanged: {
                         if (mpvPlayer) {
-                            mpvPlayer.loop = checked;
+                            try {
+                                mpvPlayer.setProperty("loop", checked);
+                            } catch (e) {
+                                console.warn("Cannot set loop property:", e);
+                                try {
+                                    mpvPlayer.command(["set", "loop", checked ? "inf" : "no"]);
+                                } catch (e2) {
+                                    console.error("Failed to set loop:", e2);
+                                }
+                            }
                         }
                     }
                 }

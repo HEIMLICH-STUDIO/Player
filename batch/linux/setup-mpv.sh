@@ -4,6 +4,9 @@ echo "==================================================="
 echo "SETTING UP MPV FOR LINUX"
 echo "==================================================="
 
+# Navigate to project root
+cd ../..
+
 # Create directories
 mkdir -p external/libs/linux/include
 mkdir -p external/libs/linux/lib
@@ -79,4 +82,6 @@ echo "MPV setup for Linux completed successfully!"
 echo "==================================================="
 
 echo "Note: For system-wide MPV installations, you might not need these local files."
-echo "CMakeLists.txt will also try to find system-installed MPV if local files are not found." 
+echo "CMakeLists.txt will also try to find system-installed MPV if local files are not found."
+
+cd batch/linux 

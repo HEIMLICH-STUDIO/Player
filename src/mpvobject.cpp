@@ -1049,11 +1049,11 @@ QString MpvObject::mediaTitle() const
     return m_mediaTitle;
 }
 
-// 총 프레임 수 계산 메서드 추가
+// 총 프레임 수 계산 메서드 추가 - MPV 네이티브 속성 우선 사용
 void MpvObject::updateFrameCount()
 {
     // 기본 검증
-    if (!mpv || m_filename.isEmpty() || m_duration <= 0 || m_fps <= 0) {
+    if (!mpv || m_filename.isEmpty()) {
         qDebug() << "Failed to calculate frame count: missing required data";
         return;
     }
@@ -1090,21 +1090,81 @@ void MpvObject::updateFrameCount()
     try {
         qDebug() << "Updating frame count for file:" << m_filename;
         
-        // 가장 정확한 방법: duration * fps
-        // MPV의 프레임 카운트 메타데이터는 때때로 부정확하므로 가장 안정적인 방법을 사용
-        int calculatedFrames = std::ceil(m_duration * m_fps);
+        int finalFrameCount = 0;
+        QString method = "unknown";
         
-        // 최소 1 프레임
-        m_frameCount = std::max(1, calculatedFrames);
+        // 방법 1: MPV의 estimated-frame-count 속성 시도
+        try {
+            double estimatedFrames = 0;
+            int result = mpv_get_property(mpv, "estimated-frame-count", MPV_FORMAT_DOUBLE, &estimatedFrames);
+            if (result >= 0 && estimatedFrames > 0) {
+                finalFrameCount = static_cast<int>(std::round(estimatedFrames));
+                method = "estimated-frame-count";
+                qDebug() << "Method 1 - estimated-frame-count:" << estimatedFrames << "rounded to:" << finalFrameCount;
+            }
+        } catch (...) {
+            qDebug() << "Method 1 failed - estimated-frame-count not available";
+        }
         
-        qDebug() << "Frame count calculation: duration =" << m_duration 
-                 << "seconds, fps =" << m_fps 
-                 << ", calculated frames =" << m_frameCount;
+        // 방법 2: track-list의 demux-frame-count 시도
+        if (finalFrameCount <= 0) {
+            try {
+                char* trackListStr = nullptr;
+                int result = mpv_get_property(mpv, "track-list", MPV_FORMAT_STRING, &trackListStr);
+                if (result >= 0 && trackListStr) {
+                    QString trackList(trackListStr);
+                    mpv_free(trackListStr);
+                    
+                    // 첫 번째 비디오 트랙의 demux-frame-count 찾기
+                    double demuxFrames = 0;
+                    result = mpv_get_property(mpv, "track-list/0/demux-frame-count", MPV_FORMAT_DOUBLE, &demuxFrames);
+                    if (result >= 0 && demuxFrames > 0) {
+                        finalFrameCount = static_cast<int>(std::round(demuxFrames));
+                        method = "demux-frame-count";
+                        qDebug() << "Method 2 - demux-frame-count:" << demuxFrames << "rounded to:" << finalFrameCount;
+                    }
+                }
+            } catch (...) {
+                qDebug() << "Method 2 failed - demux-frame-count not available";
+            }
+        }
         
-        // 프레임 번호 체계에 따른 표시 조정
-        int displayedFrameCount = m_oneBasedFrameNumbers ? m_frameCount : m_frameCount - 1;
-        qDebug() << "Final frame count:" << m_frameCount 
-                 << "(Displayed as: 0-" << displayedFrameCount << ")";
+        // 방법 3: 직접 frame-count 속성 시도
+        if (finalFrameCount <= 0) {
+            try {
+                double frameCount = 0;
+                int result = mpv_get_property(mpv, "frame-count", MPV_FORMAT_DOUBLE, &frameCount);
+                if (result >= 0 && frameCount > 0) {
+                    finalFrameCount = static_cast<int>(std::round(frameCount));
+                    method = "frame-count";
+                    qDebug() << "Method 3 - frame-count:" << frameCount << "rounded to:" << finalFrameCount;
+                }
+            } catch (...) {
+                qDebug() << "Method 3 failed - frame-count not available";
+            }
+        }
+        
+        // 방법 4 (fallback): duration * fps 계산
+        if (finalFrameCount <= 0 && m_duration > 0 && m_fps > 0) {
+            finalFrameCount = static_cast<int>(std::ceil(m_duration * m_fps));
+            method = "duration * fps calculation";
+            qDebug() << "Method 4 (fallback) - duration * fps:" << m_duration << "*" << m_fps << "=" << finalFrameCount;
+        }
+        
+        // 최소 1 프레임 보장
+        m_frameCount = std::max(1, finalFrameCount);
+        
+        qDebug() << "Frame count determined using" << method << ": total frames =" << m_frameCount;
+        
+        // MPV의 실제 프레임 수를 그대로 사용 (강제 조정 제거)
+        // 이전에 172->171 강제 조정이 "171 프레임 트랩" 원인이었음
+        
+        // 프레임 번호 체계에 따른 표시 정보 출력
+        if (m_oneBasedFrameNumbers) {
+            qDebug() << "Final frame count:" << m_frameCount << "(Display: 1-" << m_frameCount << ")";
+        } else {
+            qDebug() << "Final frame count:" << m_frameCount << "(Display: 0-" << (m_frameCount - 1) << ")";
+        }
         
         // 프레임 카운트 변경 신호 발생
         emit frameCountChanged(m_frameCount);

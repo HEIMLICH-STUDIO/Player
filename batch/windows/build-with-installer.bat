@@ -8,6 +8,9 @@ echo ====================================================
 echo Building Player by HEIMLICH with Custom Icon & Installer
 echo ====================================================
 
+:: Navigate to project root
+cd ..\..
+
 :: Create output directories if they don't exist
 if not exist "output" mkdir output
 if not exist "output\installers" mkdir output\installers
@@ -50,7 +53,7 @@ echo.
 
 :: Step 2: Convert PNG icon to ICO format
 echo [STEP 2] Converting icon to ICO format...
-powershell -ExecutionPolicy Bypass -File convert-icon.ps1
+powershell -ExecutionPolicy Bypass -File batch\windows\convert-icon.ps1
 
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Icon conversion failed!
@@ -61,12 +64,12 @@ if %ERRORLEVEL% NEQ 0 (
 echo [SUCCESS] Icon converted successfully!
 
 :: Verify icon exists
-if not exist "assets\Images\icon_win.ico" (
+if not exist "output\temp\icon_win.ico" (
     echo [ERROR] icon_win.ico not found after conversion!
     pause
     exit /b 1
 )
-echo [INFO] Icon file verified: assets\Images\icon_win.ico
+echo [INFO] Icon file verified: output\temp\icon_win.ico
 echo.
 
 :: Step 3: Clean up previous build files
@@ -101,14 +104,14 @@ cd /d "%TEMP_BUILD_DIR%\source\build"
 
 :: Copy icon to multiple locations to ensure it's found
 echo [INFO] Copying icon for resource compilation...
-copy "..\assets\Images\icon_win.ico" "." /Y
-copy "..\assets\Images\icon_win.ico" "icon_win.ico" /Y
+copy "..\output\temp\icon_win.ico" "." /Y
+copy "..\output\temp\icon_win.ico" "icon_win.ico" /Y
 
 :: Also ensure the icon is in the source directory
-copy "..\assets\Images\icon_win.ico" "..\icon_win.ico" /Y
+copy "..\output\temp\icon_win.ico" "..\icon_win.ico" /Y
 
 :: Copy icon to build directory as well
-copy "..\assets\Images\icon_win.ico" "..\..\assets\Images\icon_win.ico" /Y
+copy "..\output\temp\icon_win.ico" "..\..\assets\Images\icon_win.ico" /Y
 
 :: Verify icon files exist in multiple locations
 echo [INFO] Verifying icon files in multiple locations...
@@ -223,10 +226,10 @@ if "%BUILD_STATUS%"=="0" (
         
         :: Copy temporary files to output/temp
         if exist "installer.nsi" (
-            copy "installer.nsi" "output\temp\" /Y
+            copy "installer.nsi" "%CURRENT_DIR%\output\temp\" /Y
         )
         if exist "icon_win.ico" (
-            copy "icon_win.ico" "output\temp\" /Y
+            copy "icon_win.ico" "%CURRENT_DIR%\output\temp\" /Y
         )
         
         echo.
@@ -287,6 +290,7 @@ if "%BUILD_STATUS%" NEQ "0" (
     echo.
     echo [ERROR] Build failed! Check the errors above.
     echo [INFO] Error log saved to output\logs\build_error_%CURRENT_VERSION%.log
+    cd batch\windows
     pause
     exit /b 1
 ) else (
@@ -307,6 +311,7 @@ if "%BUILD_STATUS%" NEQ "0" (
     echo.
     echo [TIP] Check the executable in Windows Explorer to verify the custom icon
     echo.
+    cd batch\windows
 )
 
 endlocal 

@@ -4,6 +4,9 @@ echo ===================================================
 echo SETTING UP MPV FOR WINDOWS
 echo ===================================================
 
+:: Navigate to project root
+cd ..\..
+
 :: Create directories
 mkdir external\libs\windows\include 2>nul
 mkdir external\libs\windows\lib 2>nul
@@ -81,4 +84,5 @@ echo MPV setup for Windows completed successfully!
 echo ===================================================
 
 :end
+cd batch\windows
 pause 

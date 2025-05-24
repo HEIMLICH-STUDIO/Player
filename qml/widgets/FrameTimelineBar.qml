@@ -59,7 +59,7 @@ Item {
     property real playheadPosition: getExactFramePosition(_internalFrame)
     property bool seekInProgress: false  // 시크 작업 진행 중 플래그
     
-    // 프레임 카운터 표시 계산
+    // 프레임 카운터 표시 계산 (설정에 따라 동적 변경)
     property int displayOffset: (mpvObject && mpvObject.oneBasedFrameNumbers) ? 1 : 0
     property string frameCounterText: {
         if (isDragging) {

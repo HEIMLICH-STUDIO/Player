@@ -120,17 +120,23 @@ Item {
 
             root.currentFrame = frame;
             
-            // MPV 현재 위치 확인
+            // MPV 현재 위치 확인 (매우 관대한 조건으로 변경)
             var mpv = getMpvObject();
             if (mpv) {
+                try {
                 var mpvPos = mpv.getProperty("time-pos");
+                    if (mpvPos !== undefined && mpvPos !== null) {
                 var mpvFrame = Math.round(mpvPos * fps);
                 
-                // 불일치 확인 및 강제 동기화
-                if (Math.abs(mpvFrame - frame) > 1) {
-                    console.log("MPV Sync: Mismatch detected - MPV:", mpvFrame, "UI:", frame);
+                        // 극단적인 불일치만 강제 동기화 (15프레임 이상 차이)
+                        if (Math.abs(mpvFrame - frame) > 15) {
+                            console.log("MPV Sync: Extreme mismatch detected - MPV:", mpvFrame, "UI:", frame);
                     var pos = frame / fps;
                     mpv.setProperty("time-pos", pos);
+                        }
+                    }
+                } catch (e) {
+                    // 동기화 오류 무시 (타이머 기반 백업 시스템이 처리)
                 }
             }
         }
@@ -168,12 +174,12 @@ Item {
     // 동기화 중재 타이머
     Timer {
         id: syncMediatorTimer
-        interval: 2000  // 2초 간격으로 늘림 (CPU 부하 감소)
+        interval: 3000  // 3초로 더 늘림 (충돌 방지)
         repeat: true
-        running: true   // 기본적으로 항상 실행 (앱 실행 필수)
+        running: false   // 기본적으로 비활성화 - 필요할 때만 켜기
         
         onTriggered: {
-            // MPV 플레이어와 UI 상태 동기화 확인
+            // MPV 플레이어와 UI 상태 동기화 확인 (매우 관대한 조건)
             var mpv = getMpvObject();
             if (mpv) {
                 try {
@@ -189,9 +195,10 @@ Item {
                             return;
                         }
                         
-                        // 큰 차이가 있을 때만 동기화 (CPU 부하 감소)
-                        if (Math.abs(mpvFrame - currentFrame) > 5) {  // 더 높은 차이 값 설정
-                            console.log("Sync mediator: Frame mismatch correction - MPV:", mpvFrame, "UI:", currentFrame);
+                        // 매우 큰 차이가 있을 때만 동기화 (극단적인 경우만)
+                        if (Math.abs(mpvFrame - currentFrame) > 20) {  // 20프레임 이상 차이만
+                            console.log("Sync mediator: Extreme frame mismatch - MPV:", mpvFrame, "UI:", currentFrame);
+                            console.log("Sync mediator: 극단적 불일치 감지, UI 동기화 수행");
                             root.currentFrame = mpvFrame;
                         }
                     }

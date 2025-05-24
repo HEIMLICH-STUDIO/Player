@@ -4,6 +4,9 @@ echo "==================================================="
 echo "SETTING UP MPV FOR macOS"
 echo "==================================================="
 
+# Navigate to project root
+cd ../..
+
 # Create directories
 mkdir -p external/libs/macos/include
 mkdir -p external/libs/macos/lib
@@ -45,17 +48,17 @@ if [ ! -f "macos/Info.plist" ]; then
 <plist version="1.0">
 <dict>
     <key>CFBundleDisplayName</key>
-    <string>HYPER-PLAYER</string>
+    <string>Player by HEIMLICH</string>
     <key>CFBundleExecutable</key>
-    <string>HYPER-PLAYER</string>
+    <string>Player-by-HEIMLICH</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.hyperplayer.app</string>
+    <string>com.heimlich.player</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>HYPER-PLAYER</string>
+    <string>Player by HEIMLICH</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -74,4 +77,6 @@ fi
 
 echo "==================================================="
 echo "MPV setup for macOS completed successfully!"
-echo "===================================================" 
+echo "==================================================="
+
+cd batch/macos 

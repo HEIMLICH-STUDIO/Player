@@ -18,6 +18,69 @@ Rectangle {
     property int totalFrames: 0
     property real fps: 24.0
     
+    // 오버플로우 방지를 위한 안전한 currentFrame 처리 (수정됨)
+    onCurrentFrameChanged: {
+        // 극단적인 오버플로우만 즉시 보정 (5프레임 이상 초과)
+        if (totalFrames > 0 && currentFrame >= totalFrames + 5) {
+            console.warn("ControlBar: Extreme frame overflow detected - currentFrame:", currentFrame, "totalFrames:", totalFrames);
+            // 안전한 범위로 제한 (최대값은 totalFrames - 1)
+            currentFrame = totalFrames - 1;
+        } else if (currentFrame < -5) {  // 극단적인 음수만 보정
+            console.warn("ControlBar: Extreme negative frame detected:", currentFrame);
+            currentFrame = 0;
+        }
+        // 경미한 오버플로우 (1-4프레임)는 자동 루프/재시작을 위해 허용
+    }
+    
+    // totalFrames가 변경될 때도 currentFrame 범위 검증
+    onTotalFramesChanged: {
+        if (totalFrames > 0 && currentFrame >= totalFrames) {
+            console.warn("ControlBar: Current frame out of range after totalFrames change:", currentFrame, "->", totalFrames - 1);
+            currentFrame = totalFrames - 1;
+        }
+    }
+    
+    // 플레이 중 지속적인 프레임 오버플로우 방지 타이머 (수정됨)
+    Timer {
+        id: frameOverflowProtectionTimer
+        interval: 500  // 간격을 늘려서 덜 공격적으로 작동
+        repeat: true
+        running: root.isPlaying  // 플레이 중일 때만 실행
+        
+        property int consecutiveOverflows: 0  // 연속 오버플로우 카운터
+        property int maxConsecutiveOverflows: 3  // 3번 연속 오버플로우 시에만 중단
+        
+        onTriggered: {
+            // 플레이 중 프레임 오버플로우 방지 (더 관대한 조건)
+            if (root.totalFrames > 0 && root.currentFrame >= root.totalFrames) {
+                consecutiveOverflows++;
+                console.warn("ControlBar: Overflow detected (", consecutiveOverflows, "/", maxConsecutiveOverflows, ") - frame:", root.currentFrame, "total:", root.totalFrames);
+                
+                // 연속으로 여러 번 오버플로우가 발생한 경우에만 중단
+                if (consecutiveOverflows >= maxConsecutiveOverflows) {
+                    console.warn("ControlBar: Persistent overflow - safety stop at frame:", root.totalFrames - 1);
+                    
+                    // 안전한 마지막 프레임으로 설정
+                    root.currentFrame = root.totalFrames - 1;
+                    
+                    // 재생 중단 (마지막 프레임에 도달)
+                    if (root.isPlaying) {
+                        console.log("ControlBar: Auto-pause due to persistent overflow");
+                        playPauseRequested();  // 재생 중단 요청
+                    }
+                    
+                    consecutiveOverflows = 0;  // 카운터 리셋
+                }
+            } else {
+                // 정상 범위면 카운터 리셋
+                if (consecutiveOverflows > 0) {
+                    console.log("ControlBar: Frame back to normal range - resetting overflow counter");
+                    consecutiveOverflows = 0;
+                }
+            }
+        }
+    }
+    
     // Video metadata properties
     property string videoCodec: ""
     property string videoFormat: ""
@@ -42,39 +105,57 @@ Rectangle {
     // 중요: MPV 객체 참조 추가
     property var mpvObject: null
     
+    // 시그널 연결 중복 방지를 위한 플래그
+    property bool _signalsConnected: false
+    
     // MPV 객체가 변경될 때 메타데이터 초기화 및 이벤트 연결
     onMpvObjectChanged: {
         console.log("ControlBar: mpvObject changed:", mpvObject ? "valid" : "null");
-        if (mpvObject) {
+        if (mpvObject && !_signalsConnected) {
             // MPV 객체 설정 시 강제로 메타데이터 초기화
             _metadataLoaded = false;
             _metadataInitialized = false;
             
-            // videoMetadataChanged 시그널 연결 시도
+            // 시그널 연결 시도 (한 번만)
             try {
                 if (typeof mpvObject.videoMetadataChanged === "function" || 
                     mpvObject.hasOwnProperty('videoMetadataChanged')) {
                     mpvObject.videoMetadataChanged.connect(function() {
                         console.log("ControlBar: Received MPV metadata change signal");
+                        if (!_metadataLoaded) {  // 아직 로딩되지 않은 경우만
                         refreshMetadata();
+                        }
                     });
+                    console.log("ControlBar: videoMetadataChanged signal connected");
                 }
                 
-                // fileLoaded 시그널 연결 시도
+                // fileLoaded 시그널 연결 시도 (한 번만)
                 if (typeof mpvObject.fileLoaded === "function" || 
                     mpvObject.hasOwnProperty('fileLoaded')) {
                     mpvObject.fileLoaded.connect(function() {
                         console.log("ControlBar: Received MPV file load completed signal");
-                        _metadataLoaded = false;  // 새 파일이므로 메타데이터 리셋
+                        
+                        // 새 파일인 경우만 메타데이터 리셋
+                        if (!_metadataLoaded) {
+                            console.log("ControlBar: New file detected, refreshing metadata");
                         refreshMetadataForNewFile();
+                        } else {
+                            console.log("ControlBar: File already loaded, skipping metadata refresh");
+                        }
                     });
+                    console.log("ControlBar: fileLoaded signal connected");
                 }
+                
+                _signalsConnected = true;  // 시그널 연결 완료 표시
+                
             } catch (e) {
                 console.error("ControlBar: Signal connection error:", e);
             }
             
-            // 즉시 메타데이터 새로고침
+            // 즉시 메타데이터 새로고침 (초기 로딩만)
+            if (!_metadataLoaded) {
             refreshMetadataForNewFile();
+            }
         }
     }
     
@@ -102,7 +183,7 @@ Rectangle {
             
             console.log("ControlBar: Path change detected -", videoPath);
             
-            // 새 파일 로드로 간주하는 조건 추가: 
+            // 새 파일 로드로 간주하는 조건: 
             // 1. 경로나 확장자가 다른 경우
             // 2. 재로드인 경우(같은 경로지만 명시적으로 새로 로드한 경우)
             var isNewFile = (newFile.path !== lastFile.path || newFile.ext !== lastFile.ext);
@@ -116,23 +197,15 @@ Rectangle {
                 _cachedCodecDisplayText = "LOADING...";
                 _cachedFpsDisplayText = "LOADING...";
                 
-                // 메타데이터 초기화 상태 리셋 - 항상 초기화
+                // 메타데이터 초기화 상태 리셋 (새 파일만)
                 _metadataInitialized = false;
-                _metadataLoaded = false; // 항상 새로 로드하도록 설정
+                _metadataLoaded = false;
                 
-                // 경로 업데이트
-                _lastVideoPath = videoPath;
-                
-                // 메타데이터 즉시 갱신
+                // 메타데이터 갱신 (중복 방지 로직 포함)
                 refreshMetadataForNewFile();
                 
-                // 안전장치: 약간 지연 후 다시 시도
-                Qt.callLater(function() {
-                    if (!_metadataLoaded) {
-                        console.log("ControlBar: Delayed metadata retry");
-                        refreshMetadataForNewFile();
-                    }
-                });
+            } else {
+                console.log("ControlBar: Same file path, skipping metadata refresh");
             }
         }
     }
@@ -144,7 +217,7 @@ Rectangle {
         
         // 이미 로드된 경우 강제 새로고침이 아니면 스킵
         if (_metadataLoaded && !forceRefresh) {
-            console.log("ControlBar: Metadata already loaded, skipping");
+            console.log("ControlBar: Metadata already loaded, skipping refresh");
             return;
         }
         
@@ -154,17 +227,30 @@ Rectangle {
             return;
         }
         
+        // 중복 호출 방지 - 이미 진행 중이면 스킵
+        if (initMetadataTimer.running) {
+            console.log("ControlBar: Metadata refresh already in progress, skipping");
+            return;
+        }
+        
         console.log("ControlBar: Initializing metadata for new file", forceRefresh ? "(forced refresh)" : "");
         
-        // 메타데이터 상태 초기화
+        // 새 파일인 경우만 메타데이터 상태 초기화
+        if (forceRefresh) {
         _metadataLoaded = false;
         _metadataInitialized = false;
+            _lastVideoPath = videoPath;  // 경로 업데이트
+        }
         
-        // 메타데이터 즉시 갱신 시도
+        // 메타데이터 즉시 갱신 시도 (중복 방지)
+        if (!_metadataLoaded) {
         refreshMetadata();
+        }
         
-        // 메타데이터 초기화 타이머 재시작 (백업 메커니즘)
-        initMetadataTimer.restart();
+        // 메타데이터 초기화 타이머 시작 (백업 메커니즘, 한 번만)
+        if (!initMetadataTimer.running) {
+            initMetadataTimer.start();
+        }
     }
     
     // 이전 MPV 객체 변경 핸들러 - 상단에 통합되었습니다
@@ -176,14 +262,27 @@ Rectangle {
         interval: 500 // 500ms 딜레이 - 비디오 로드 후 메타데이터가 준비되도록
         repeat: false
         onTriggered: {
+            console.log("ControlBar: Metadata timer triggered");
+            if (!_metadataLoaded && !_metadataRefreshInProgress) {
             refreshMetadata();
+            } else {
+                console.log("ControlBar: Skipping timer refresh - already loaded or in progress");
+            }
         }
     }
     
     // 메타데이터 새로고침 함수 (직접 호출할 수 있도록)
+    property bool _metadataRefreshInProgress: false  // 메타데이터 새로고침 진행 중 플래그
+    
     function refreshMetadata() {
         if (!mpvObject) {
             console.error("ControlBar: Failed to refresh metadata - no MPV object");
+            return;
+        }
+        
+        // 이미 진행 중이면 스킵
+        if (_metadataRefreshInProgress) {
+            console.log("ControlBar: Metadata refresh already in progress, skipping");
             return;
         }
         
@@ -194,6 +293,7 @@ Rectangle {
             return;
         }
         
+        _metadataRefreshInProgress = true;  // 진행 중 플래그 설정
         console.log("ControlBar: Starting metadata refresh", forceRefresh ? "(forced mode)" : "");
         
         try {
@@ -331,6 +431,8 @@ Rectangle {
             _cachedFpsDisplayText = "ERROR";
             _metadataInitialized = true;
             _metadataLoaded = true; // 오류가 발생해도 로드 시도는 완료된 것으로 처리
+        } finally {
+            _metadataRefreshInProgress = false;  // 진행 중 플래그 리셋 (성공/실패 관계없이)
         }
     }
     
@@ -349,6 +451,20 @@ Rectangle {
     signal fullscreenToggleRequested()
     signal settingsToggleRequested()
     signal toggleScopesRequested()
+    
+    // 안전한 프레임 이동 함수들
+    function safeFrameBack(frames) {
+        var newFrame = Math.max(0, root.currentFrame - frames);
+        console.log("ControlBar: Safe frame back:", root.currentFrame, "->", newFrame);
+        seekToFrameRequested(newFrame);
+    }
+    
+    function safeFrameForward(frames) {
+        var maxFrame = root.totalFrames > 0 ? root.totalFrames - 1 : 0;
+        var newFrame = Math.min(maxFrame, root.currentFrame + frames);
+        console.log("ControlBar: Safe frame forward:", root.currentFrame, "->", newFrame);
+        seekToFrameRequested(newFrame);
+    }
     
     // 타임라인 영역
     Item {
@@ -380,17 +496,31 @@ Rectangle {
                 }
             }
             
-            // seekRequested 시그널을 상위로 올림
+            // seekRequested 시그널을 상위로 올림 - 관대한 오버플로우 방지
             onSeekRequested: function(frame) {
                 console.log("ControlBar: Frame seek request -", frame);
                 
-                // 내부 currentFrame도 함께 업데이트 (동기화 보장)
-                if (root.currentFrame !== frame) {
-                    root.currentFrame = frame;
+                // 관대한 프레임 범위 검증 (극단적인 경우만 보정)
+                var safeFrame = frame;
+                if (root.totalFrames > 0) {
+                    // 극단적인 오버플로우만 보정 (10프레임 이상 초과)
+                    if (frame >= root.totalFrames + 10) {
+                        console.warn("ControlBar: Extreme seek overflow -", frame, "->", root.totalFrames - 1);
+                        safeFrame = root.totalFrames - 1;
+                    } else if (frame < -10) {  // 극단적인 음수만 보정
+                        console.warn("ControlBar: Extreme seek underflow -", frame, "-> 0");
+                        safeFrame = 0;
+                    }
+                    // 경미한 오버플로우는 MPV가 자체적으로 처리하도록 허용
                 }
                 
-                // 상위 컴포넌트로 시그널 전달
-                root.seekToFrameRequested(frame);
+                // 내부 currentFrame도 함께 업데이트 (동기화 보장)
+                if (root.currentFrame !== safeFrame) {
+                    root.currentFrame = safeFrame;
+                }
+                
+                // 상위 컴포넌트로 프레임 시그널 전달 (원본값 전달로 변경)
+                root.seekToFrameRequested(frame);  // safeFrame이 아닌 원본 frame 전달
             }
         }
     }
@@ -453,6 +583,7 @@ Rectangle {
                     height: 36
                     onClicked: {
                         if (root.mpvObject) {
+                            console.log("ControlBar: Jump to start (safe frame: 0)");
                             seekToFrameRequested(0);
                         }
                     }
@@ -467,7 +598,7 @@ Rectangle {
                     iconSize: 18
                     width: 36
                     height: 36
-                    onClicked: frameBackRequested(1)
+                    onClicked: safeFrameBack(1)
                     
                     ToolTip.visible: hovered
                     ToolTip.text: "Previous Frame"
@@ -496,7 +627,7 @@ Rectangle {
                     iconSize: 18
                     width: 36
                     height: 36
-                    onClicked: frameForwardRequested(1)
+                    onClicked: safeFrameForward(1)
                     
                     ToolTip.visible: hovered
                     ToolTip.text: "Next Frame"
@@ -510,7 +641,9 @@ Rectangle {
                     height: 36
                     onClicked: {
                         if (root.mpvObject && root.totalFrames > 0) {
-                            seekToFrameRequested(root.totalFrames - 1);
+                            var safeEndFrame = Math.max(0, root.totalFrames - 1);
+                            console.log("ControlBar: Jump to end (safe frame:", safeEndFrame, ")");
+                            seekToFrameRequested(safeEndFrame);
                         }
                     }
                     

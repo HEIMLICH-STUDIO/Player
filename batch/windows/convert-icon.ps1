@@ -9,7 +9,13 @@ Add-Type -AssemblyName System.Windows.Forms
 
 # Input and output paths
 $pngPath = "assets\Images\icon_win.png"
-$icoPath = "assets\Images\icon_win.ico"
+$icoPath = "output\temp\icon_win.ico"
+
+# Create output directory if it doesn't exist
+if (-not (Test-Path "output\temp")) {
+    New-Item -ItemType Directory -Path "output\temp" -Force | Out-Null
+    Write-Host "[INFO] Created output\temp directory" -ForegroundColor Green
+}
 
 # Check if PNG file exists
 if (-not (Test-Path $pngPath)) {
@@ -18,6 +24,7 @@ if (-not (Test-Path $pngPath)) {
 }
 
 Write-Host "[INFO] Loading PNG image: $pngPath" -ForegroundColor Green
+Write-Host "[INFO] Output ICO will be saved to: $icoPath" -ForegroundColor Yellow
 
 try {
     # Load the original image
@@ -114,6 +121,11 @@ try {
         Write-Host "[INFO] Resolutions: $($sizes -join ', ') pixels" -ForegroundColor Cyan
         Write-Host "[INFO] Format: PNG-compressed layers for maximum quality" -ForegroundColor Cyan
         Write-Host "[INFO] Location: $icoPath" -ForegroundColor Yellow
+        
+        # Also copy to assets directory for compatibility
+        $legacyPath = "assets\Images\icon_win.ico"
+        Copy-Item $icoPath $legacyPath -Force
+        Write-Host "[INFO] Legacy copy created at: $legacyPath" -ForegroundColor Cyan
     } else {
         Write-Host "[ERROR] Failed to create ICO file" -ForegroundColor Red
         exit 1

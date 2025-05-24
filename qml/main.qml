@@ -120,7 +120,7 @@ ApplicationWindow {
                 // Get duration
                 var duration = videoArea.mpvPlayer.getProperty("duration");
                 if (duration !== undefined && duration !== null) {
-                    totalFrames = Math.ceil(duration * fps);
+                    totalFrames = Math.ceil(duration * fps) - 1;
                 }
                 
             } catch (e) {
