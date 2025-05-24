@@ -280,6 +280,15 @@ if(MPV_FOUND)
         set_target_properties(${PROJECT_NAME} PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/macos/Info.plist
+            MACOSX_BUNDLE_ICON_FILE icon_mac.icns
+        )
+        
+        # Copy icon file to Resources directory in bundle
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/assets/Images/icon_mac.icns
+                $<TARGET_BUNDLE_CONTENT_DIR:${PROJECT_NAME}>/Resources/icon_mac.icns
+            COMMENT "Copying macOS icon to bundle Resources"
         )
     else()
         # Copy assets and QML folders even without MPV DLL (for other platforms)

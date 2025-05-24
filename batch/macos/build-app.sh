@@ -4,8 +4,9 @@ echo "==================================================="
 echo "Building Player by HEIMLICH for macOS"
 echo "==================================================="
 
-# Navigate to project root
-cd ../..
+# Set project root
+PROJECT_ROOT="/Users/zeonjiho/Documents/GitHub/Player"
+cd "${PROJECT_ROOT}"
 
 # Extract version from CMakeLists.txt
 echo "[INFO] Extracting version information from CMakeLists.txt..."

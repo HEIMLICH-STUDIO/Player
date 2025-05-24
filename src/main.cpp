@@ -351,13 +351,40 @@ int main(int argc, char *argv[])
     QString iconPath;
     QDir currentDir(QDir::currentPath());
     
-    // 아이콘 파일 경로 찾기 - 여러 위치 시도
-    QStringList iconPaths = {
+    // 플랫폼별 아이콘 파일 경로 찾기
+    QStringList iconPaths;
+    
+#ifdef Q_OS_WIN
+    // Windows: .ico 파일 우선
+    iconPaths = {
         "assets/Images/icon_win.ico",
         "build/assets/Images/icon_win.ico", 
         "icon_win.ico",
-        ":assets/Images/icon_win.ico"  // Qt 리소스 시스템
+        ":assets/Images/icon_win.ico",  // Qt 리소스 시스템
+        // fallback to .icns if .ico not available
+        "assets/Images/icon_mac.icns",
+        ":assets/Images/icon_mac.icns"
     };
+#elif defined(Q_OS_MAC)
+    // macOS: .icns 파일 우선
+    iconPaths = {
+        "assets/Images/icon_mac.icns",
+        "build/assets/Images/icon_mac.icns",
+        "icon_mac.icns", 
+        ":assets/Images/icon_mac.icns",  // Qt 리소스 시스템
+        // fallback to .ico if .icns not available
+        "assets/Images/icon_win.ico",
+        ":assets/Images/icon_win.ico"
+    };
+#else
+    // Linux 및 기타: 둘 다 시도
+    iconPaths = {
+        ":assets/Images/icon_win.ico",
+        ":assets/Images/icon_mac.icns",
+        "assets/Images/icon_win.ico",
+        "assets/Images/icon_mac.icns"
+    };
+#endif
     
     QIcon appIcon;
     for (const QString& path : iconPaths) {
@@ -371,8 +398,16 @@ int main(int argc, char *argv[])
     
     // 리소스 시스템에서도 시도
     if (appIcon.isNull()) {
+#ifdef Q_OS_WIN
+        appIcon = QIcon(":assets/Images/icon_win.ico");
+        qDebug() << "Using Windows icon from Qt resource system";
+#elif defined(Q_OS_MAC)
+        appIcon = QIcon(":assets/Images/icon_mac.icns");
+        qDebug() << "Using macOS icon from Qt resource system";
+#else
         appIcon = QIcon(":assets/Images/icon_win.ico");
         qDebug() << "Using icon from Qt resource system";
+#endif
     }
     
     // 애플리케이션 아이콘 설정 (exe 파일 자체 아이콘)
