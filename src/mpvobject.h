@@ -23,6 +23,7 @@ class MpvObject : public QQuickFramebufferObject
     Q_PROPERTY(bool loop READ isLoopEnabled WRITE setLoopEnabled NOTIFY loopChanged)
     Q_PROPERTY(int frameCount READ frameCount NOTIFY frameCountChanged)
     Q_PROPERTY(bool oneBasedFrameNumbers READ isOneBasedFrameNumbers WRITE setOneBasedFrameNumbers NOTIFY oneBasedFrameNumbersChanged)
+    Q_PROPERTY(bool keepOpen READ isKeepOpenEnabled WRITE setKeepOpenEnabled NOTIFY keepOpenChanged)
     
     // 비디오 코덱 정보를 위한 새 프로퍼티
     Q_PROPERTY(QString videoCodec READ videoCodec NOTIFY videoCodecChanged)
@@ -54,6 +55,7 @@ class MpvObject : public QQuickFramebufferObject
     bool m_loopEnabled = false;
     int m_frameCount = 0;
     bool m_oneBasedFrameNumbers = false; // 기본값은 0-기반
+    bool m_keepOpenEnabled = true; // keep-open 기능 활성화
     
     // 코덱 정보 변수 추가
     QString m_videoCodec = "";
@@ -99,6 +101,8 @@ public:
     int frameCount() const;
     bool isOneBasedFrameNumbers() const;
     void setOneBasedFrameNumbers(bool oneBased);
+    bool isKeepOpenEnabled() const;
+    void setKeepOpenEnabled(bool enabled);
     
     // 코덱 정보 접근자 추가
     QString videoCodec() const;
@@ -146,6 +150,8 @@ public slots:
     void applyVideoFilters(const QStringList& filters);
     void updateTimecode();      // 타임코드 업데이트 함수
     void fetchEmbeddedTimecode(); // 내장 타임코드 추출 함수
+    void seekToLastFrame();     // 마지막 프레임으로 정확히 이동
+    void seekToFirstFrame();    // 첫 번째 프레임으로 정확히 이동
 
 signals:
     void positionChanged(double position);
@@ -172,6 +178,7 @@ signals:
     void timecodeSourceChanged(int source);
     void loopChanged(bool enabled);
     void oneBasedFrameNumbersChanged(bool oneBased);
+    void keepOpenChanged(bool enabled);
     void endReached();  // 영상 종료 시 발생하는 시그널
     void endReachedChanged(bool reached);  // endReached 속성 변경 시그널
 };

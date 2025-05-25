@@ -213,6 +213,12 @@ MpvObject::MpvObject(QQuickItem * parent)
     // 기본적으로 반복 재생 비활성화
     mpv_set_option_string(mpv, "loop", "no");
     
+    // keep-open 설정 - 비디오 종료 시 마지막 프레임 유지
+    mpv_set_option_string(mpv, "keep-open", "yes");
+    
+    // idle 모드 활성화 - 파일이 없어도 mpv 유지
+    mpv_set_option_string(mpv, "idle", "yes");
+    
     // 프로퍼티 감시 설정
     mpv_observe_property(mpv, 0, "pause", MPV_FORMAT_FLAG);
     mpv_observe_property(mpv, 0, "time-pos", MPV_FORMAT_DOUBLE);
@@ -891,71 +897,29 @@ void MpvObject::handleEndOfVideo()
         m_endReached = true;
         emit endReachedChanged(true);
         
-        // 항상 일시 정지 먼저 설정
-        if (!m_pause) {
-            command(QVariantList() << "set_property" << "pause" << true);
-            m_pause = true;
-            emit pauseChanged(m_pause);
-            emit playingChanged(false);
-        }
-        
-        // 안전한 위치로 이동 (마지막 프레임에서 약간 앞으로)
-        if (m_duration > 0) {
-            // 1. 먼저 정확한 현재 위치 확인
-            double exactPos = m_position;
-            try {
-                double checkPos = getProperty("time-pos").toDouble();
-                if (checkPos > 0) {
-                    exactPos = checkPos;
-                }
-            } catch (...) {}
+        // keep-open이 활성화된 경우 마지막 프레임에 정확히 위치
+        if (m_keepOpenEnabled) {
+            qDebug() << "Keep-open enabled, positioning at last frame";
             
-            // 2. 안전한 위치 계산 - 마지막 프레임보다 1-2프레임 앞으로 이동
-            double lastFramePos = 0;
-            
-            // 마지막 프레임이 아닌 마지막에서 2프레임 전으로 이동 (중요: 검은 화면 방지)
-            if (m_fps > 0) {
-                lastFramePos = m_duration - (2.0 / m_fps);
-            } else {
-                lastFramePos = m_duration - 0.1; // fps를 알 수 없는 경우 0.1초 앞으로
+            // 일시정지 상태로 설정
+            if (!m_pause) {
+                command(QVariantList() << "set_property" << "pause" << true);
+                m_pause = true;
+                emit pauseChanged(m_pause);
+                emit playingChanged(false);
             }
             
-            // 마지막 시크 위치가 너무 앞이 아닌지 확인 (동영상 길이의 95% 이상)
-            lastFramePos = std::max(lastFramePos, m_duration * 0.95);
-            
-            // 안전하게 시크 (숫자 형식 문제 방지)
-            lastFramePos = std::max(0.0, lastFramePos);
-            QString posStr = QString::number(lastFramePos, 'f', 6); // 과학적 표기법 방지
-            
-            qDebug() << "End of video - seeking to safe position:" << posStr;
-            
-            // 현재 위치 업데이트
-            m_position = lastFramePos;
-            m_lastPosition = lastFramePos;
-            
-            // 일시정지 상태에서 안전한 위치로 시크 (MPV 명령 대신 속성 설정)
-            mpv_set_property_string(mpv, "pause", "yes");
-            mpv_set_property_string(mpv, "time-pos", posStr.toUtf8().constData());
-            emit positionChanged(lastFramePos);
+            // 마지막 프레임으로 정확히 이동
+            seekToLastFrame();
             
             // 루프 모드가 활성화된 경우 처리
             if (m_loopEnabled) {
-                // 루프 시작 처리 타이머로 지연 (MPV가 완전히 시크를 끝내도록)
                 QTimer::singleShot(150, this, [this]() {
                     try {
                         qDebug() << "Loop activated, going back to start";
+                        seekToFirstFrame();
                         
-                        // 영상의 시작으로 돌아가기 (0초)
-                        QString zeroPos = "0.0";
-                        mpv_set_property_string(mpv, "pause", "yes");
-                        mpv_set_property_string(mpv, "time-pos", zeroPos.toUtf8().constData());
-                        
-                        // 상태 업데이트
-                        m_position = 0;
-                        m_lastPosition = 0;
-                        emit positionChanged(0);
-                        
-                        // 다시 재생 시작 (0.2초 지연 - 첫 프레임이 정확히 표시되도록)
+                        // 다시 재생 시작
                         QTimer::singleShot(200, this, [this]() {
                             command(QVariantList() << "set_property" << "pause" << false);
                             m_pause = false;
@@ -966,15 +930,69 @@ void MpvObject::handleEndOfVideo()
                             m_endReached = false;
                             emit endReachedChanged(false);
                             
-                            // 화면 갱신
-                update();
-            });
+                            update();
+                        });
                     } catch (const std::exception& e) {
                         qCritical() << "Exception in loop handling:" << e.what();
-                    } catch (...) {
-                        qCritical() << "Unknown exception in loop handling";
                     }
                 });
+            }
+        } else {
+            // keep-open이 비활성화된 경우 기존 동작 유지
+            // 항상 일시 정지 먼저 설정
+            if (!m_pause) {
+                command(QVariantList() << "set_property" << "pause" << true);
+                m_pause = true;
+                emit pauseChanged(m_pause);
+                emit playingChanged(false);
+            }
+            
+            // 안전한 위치로 이동 (마지막 프레임에서 약간 앞으로)
+            if (m_duration > 0) {
+                double lastFramePos = 0;
+                
+                if (m_fps > 0) {
+                    lastFramePos = m_duration - (2.0 / m_fps);
+                } else {
+                    lastFramePos = m_duration - 0.1;
+                }
+                
+                lastFramePos = std::max(lastFramePos, m_duration * 0.95);
+                lastFramePos = std::max(0.0, lastFramePos);
+                QString posStr = QString::number(lastFramePos, 'f', 6);
+                
+                qDebug() << "End of video - seeking to safe position:" << posStr;
+                
+                m_position = lastFramePos;
+                m_lastPosition = lastFramePos;
+                
+                mpv_set_property_string(mpv, "pause", "yes");
+                mpv_set_property_string(mpv, "time-pos", posStr.toUtf8().constData());
+                emit positionChanged(lastFramePos);
+                
+                // 루프 모드 처리
+                if (m_loopEnabled) {
+                    QTimer::singleShot(150, this, [this]() {
+                        try {
+                            qDebug() << "Loop activated, going back to start";
+                            seekToFirstFrame();
+                            
+                            QTimer::singleShot(200, this, [this]() {
+                                command(QVariantList() << "set_property" << "pause" << false);
+                                m_pause = false;
+                                emit pauseChanged(false);
+                                emit playingChanged(true);
+                                
+                                m_endReached = false;
+                                emit endReachedChanged(false);
+                                
+                                update();
+                            });
+                        } catch (const std::exception& e) {
+                            qCritical() << "Exception in loop handling:" << e.what();
+                        }
+                    });
+                }
             }
         }
         
@@ -1020,6 +1038,25 @@ void MpvObject::setLoopEnabled(bool enabled)
         command(QVariantList() << "set_property" << "loop" << (enabled ? "inf" : "no"));
         
         emit loopChanged(enabled);
+    }
+}
+
+// keep-open 모드 확인 함수
+bool MpvObject::isKeepOpenEnabled() const
+{
+    return m_keepOpenEnabled;
+}
+
+// keep-open 모드 설정 함수
+void MpvObject::setKeepOpenEnabled(bool enabled)
+{
+    if (m_keepOpenEnabled != enabled) {
+        m_keepOpenEnabled = enabled;
+        
+        // MPV 속성 설정
+        command(QVariantList() << "set_property" << "keep-open" << (enabled ? "yes" : "no"));
+        
+        emit keepOpenChanged(enabled);
     }
 }
 
@@ -1681,4 +1718,101 @@ int MpvObject::timecodeToFrame(const QString& tc) const
     
     // 지원하지 않는 형식
     return 0;
+}
+
+// 마지막 프레임으로 정확히 이동하는 메서드
+void MpvObject::seekToLastFrame()
+{
+    if (!mpv || m_duration <= 0) {
+        qWarning() << "Cannot seek to last frame: no video loaded or invalid duration";
+        return;
+    }
+    
+    try {
+        qDebug() << "Seeking to last frame with precise positioning";
+        
+        // 1. 먼저 일시정지 상태로 설정
+        if (!m_pause) {
+            command(QVariantList() << "set_property" << "pause" << true);
+        }
+        
+        // 2. mpv의 seek 100 absolute-percent+exact 명령 사용
+        // 이는 정확히 마지막 프레임으로 이동하는 가장 정확한 방법
+        command(QVariantList() << "seek" << "100" << "absolute-percent+exact");
+        
+        // 3. 추가적으로 프레임 단위로 미세 조정
+        QTimer::singleShot(100, this, [this]() {
+            try {
+                // 현재 위치 확인
+                double currentPos = getProperty("time-pos").toDouble();
+                
+                // 마지막 프레임의 정확한 위치 계산
+                double lastFramePos = m_duration;
+                if (m_fps > 0) {
+                    // 마지막 프레임은 duration에서 1프레임 시간만큼 뺀 위치
+                    lastFramePos = m_duration - (1.0 / m_fps);
+                }
+                
+                // 위치가 정확하지 않다면 미세 조정
+                if (std::abs(currentPos - lastFramePos) > (0.5 / m_fps)) {
+                    QString posStr = QString::number(lastFramePos, 'f', 6);
+                    command(QVariantList() << "seek" << posStr << "absolute+exact");
+                    
+                    qDebug() << "Fine-tuned position to:" << posStr;
+                }
+                
+                // 상태 업데이트
+                m_position = lastFramePos;
+                emit positionChanged(m_position);
+                
+                // 화면 갱신
+                update();
+                
+            } catch (const std::exception& e) {
+                qCritical() << "Exception in seekToLastFrame fine-tuning:" << e.what();
+            }
+        });
+        
+    } catch (const std::exception& e) {
+        qCritical() << "Exception in seekToLastFrame:" << e.what();
+    }
+}
+
+// 첫 번째 프레임으로 정확히 이동하는 메서드
+void MpvObject::seekToFirstFrame()
+{
+    if (!mpv) {
+        qWarning() << "Cannot seek to first frame: no video loaded";
+        return;
+    }
+    
+    try {
+        qDebug() << "Seeking to first frame with precise positioning";
+        
+        // 1. 먼저 일시정지 상태로 설정
+        if (!m_pause) {
+            command(QVariantList() << "set_property" << "pause" << true);
+        }
+        
+        // 2. mpv의 seek 0 absolute+exact 명령 사용
+        command(QVariantList() << "seek" << "0" << "absolute+exact");
+        
+        // 3. endReached 상태 리셋
+        if (m_endReached) {
+            m_endReached = false;
+            emit endReachedChanged(false);
+        }
+        
+        // 상태 업데이트
+        m_position = 0.0;
+        emit positionChanged(m_position);
+        
+        // 화면 갱신
+        update();
+        
+        qDebug() << "Successfully seeked to first frame";
+        
+    } catch (const std::exception& e) {
+        qCritical() << "Exception in seekToFirstFrame:" << e.what();
+    }
 }
