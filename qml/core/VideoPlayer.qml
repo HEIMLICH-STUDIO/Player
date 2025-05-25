@@ -71,14 +71,10 @@ Item {
         // 현재 프레임 변경 시 로그 출력
         // console.log("VideoPlayer: Current frame changed to ->", currentFrame);
         
-        // 관련 객체들 강제 동기화
+        // 관련 객체들 강제 동기화 - 새로운 시간 기반 타임라인 바 사용
         if (controlBar && controlBar.frameTimeline) {
-            // 타임라인에 강제 업데이트가 필요한 경우 확인
-            if (controlBar.frameTimeline.currentFrame !== currentFrame && 
-                !controlBar.frameTimeline.isDragging) {
-                // console.log("VideoPlayer: Force updating timeline frame");
-                controlBar.frameTimeline.currentFrame = currentFrame;
-            }
+            // 시간 기반 타임라인은 TimelineSync를 통해 자동 동기화되므로 별도 처리 불필요
+            // console.log("VideoPlayer: Timeline sync handled by TimelineSync object");
         }
     }
     
@@ -145,18 +141,17 @@ Item {
             // console.log("MPV Sync: Frame change detected from video area:", frame);
 
             // 타임라인이 드래그 중이면 영상 측 업데이트를 잠시 무시하여
-            // 사용자가 선택한 프레임을 우선시한다. 드래그 중인 프레임은
-            // ControlBar에서 VideoArea로 직접 전달되므로 여기서는 무시한다.
+            // 사용자가 선택한 프레임을 우선시한다. 새로운 시간 기반 타임라인 사용
             if (controlBar && controlBar.frameTimeline &&
                 controlBar.frameTimeline.isDragging) {
                 // console.log("Timeline is dragging - ignoring MPV sync event");
                 return;
             }
             
-            // 드래그 완료 직후 안정화 기간 동안도 MPV 싱크 이벤트 무시
+            // 시간 기반 타임라인에서는 seekInProgress 상태 확인
             if (controlBar && controlBar.frameTimeline &&
-                (controlBar.frameTimeline.recentlyDragged || controlBar.frameTimeline.seekStabilizing)) {
-                // console.log("Timeline in stabilization period - ignoring MPV sync event");
+                controlBar.frameTimeline.seekInProgress) {
+                // console.log("Timeline seek in progress - ignoring MPV sync event");
                 return;
             }
 
@@ -229,11 +224,10 @@ Item {
                     if (timePos !== undefined && timePos !== null) {
                         var mpvFrame = Math.round(timePos * fps);
                         
-                        // 드래그 중이거나 안정화 기간에는 동기화 건너뛰기
+                        // 드래그 중이거나 시크 진행 중에는 동기화 건너뛰기
                         if (controlBar && controlBar.frameTimeline && 
                             (controlBar.frameTimeline.isDragging || 
-                             controlBar.frameTimeline.seekStabilizing || 
-                             controlBar.frameTimeline.recentlyDragged)) {
+                             controlBar.frameTimeline.seekInProgress)) {
                             return;
                         }
                         
@@ -408,29 +402,50 @@ Item {
                 });
             }
             
-            // 시그널 연결
+            // 시그널 연결 - 시간 기반 시크로 변경
             onSeekToFrameRequested: function(frame) {
-                console.log("VideoPlayer: Seek frame request -", frame);
+                console.log("VideoPlayer: Time-based seek frame request -", frame);
                 
-                // 1. First, update internal state immediately
-                root.currentFrame = frame;
+                // 1. 프레임을 시간으로 변환
+                var targetPosition = frame / fps;
                 
-                // 2. Pass seek command to video area
-                videoArea.seekToFrame(frame);
-                
-                // 3. Pass seek command directly to MPV (double guarantee)
+                // 2. TimelineSync를 통한 시간 기반 시크 (MPV 공식 권장)
+                if (timelineSync) {
+                    console.log("VideoPlayer: Using TimelineSync for seek to position:", targetPosition);
+                    timelineSync.seekToPosition(targetPosition, true);
+                } else {
+                    // 3. 직접 MPV 시간 기반 시크 (fallback)
                 var mpv = getMpvObject();
                 if (mpv) {
-                    var pos = frame / fps;
-                    mpv.setProperty("time-pos", pos);
-                    console.log("MPV direct seek command:", pos);
+                        console.log("VideoPlayer: Direct MPV time-based seek:", targetPosition);
+                        mpv.seekToPosition(targetPosition);
                 }
+                }
+                
+                // 4. 내부 상태 업데이트
+                root.currentFrame = frame;
             }
             
             onOpenFileRequested: videoArea.openFile()
             onPlayPauseRequested: videoArea.playPause()
-            onFrameBackRequested: function(frames) { videoArea.stepBackward(frames) }
-            onFrameForwardRequested: function(frames) { videoArea.stepForward(frames) }
+            onFrameBackRequested: function(frames) { 
+                // 시간 기반 백워드 네비게이션
+                var targetFrame = Math.max(0, root.currentFrame - frames);
+                var targetPosition = targetFrame / fps;
+                if (timelineSync) {
+                    timelineSync.seekToPosition(targetPosition, true);
+                }
+                root.currentFrame = targetFrame;
+            }
+            onFrameForwardRequested: function(frames) { 
+                // 시간 기반 포워드 네비게이션
+                var targetFrame = Math.min(root.totalFrames - 1, root.currentFrame + frames);
+                var targetPosition = targetFrame / fps;
+                if (timelineSync) {
+                    timelineSync.seekToPosition(targetPosition, true);
+                }
+                root.currentFrame = targetFrame;
+            }
             onFullscreenToggleRequested: {
                 isFullscreen = !isFullscreen
                 toggleFullscreen()

@@ -141,41 +141,7 @@ Item {
         }
     }
     
-    // 영상 끝 감지 핸들러
-    Connections {
-        target: mpvPlayer
-        function onPositionChanged(position) {
-            // 영상 끝 근처 감지 로직
-            if (mpvPlayer && position > 0) {
-                var duration = mpvPlayer.getProperty("duration");
-                if (duration && duration > 0) {
-                    // 마지막 1초 이내에서 영상 끝 플래그 설정
-                    if (position > duration - 1.0 && !isNearEndOfFile) {
-                        console.log("VideoArea: Near end of file detected at position:", position);
-                        isNearEndOfFile = true;
-                    }
-                    // 마지막 0.1초 이내에서 완전 끝 플래그 설정
-                    else if (position > duration - 0.1 && !isAtEndOfFile) {
-                        console.log("VideoArea: At end of file detected at position:", position);
-                        isAtEndOfFile = true;
-                    }
-                    // 앞부분으로 돌아가면 플래그 리셋 (더 빠른 리셋)
-                    else if (position < duration - 1.5 && (isNearEndOfFile || isAtEndOfFile)) {
-                        console.log("VideoArea: Reset end flags, position:", position);
-                        isNearEndOfFile = false;
-                        isAtEndOfFile = false;
-                    }
-                    
-                    // 특별한 경우: 시작 부분(첫 2초)으로 이동하면 즉시 플래그 리셋
-                    if (position < 2.0 && (isNearEndOfFile || isAtEndOfFile)) {
-                        console.log("VideoArea: Position near start - force reset end flags");
-                        isNearEndOfFile = false;
-                        isAtEndOfFile = false;
-                    }
-                }
-            }
-        }
-    }
+
     
     // Dark theme background
     Rectangle {
@@ -461,20 +427,8 @@ Item {
                         console.log("File fully loaded, fetching metadata");
                         metadataLoaded = false; // 확실히 초기화
                         
-                        // 영상 끝 플래그 리셋 (파일 로드 시)
-                        isNearEndOfFile = false;
-                        isAtEndOfFile = false;
-                        
                         // 즉시 메타데이터 가져오기 시도
                         fetchVideoMetadata();
-                        
-                        // 첫 번째 시도가 실패할 경우를 대비한 두 번째 시도 예약
-                        Qt.callLater(function() {
-                            if (!metadataLoaded) {
-                                console.log("First metadata load failed, trying again");
-                                fetchVideoMetadata();
-                            }
-                        });
                     });
                 }
                 
@@ -542,37 +496,27 @@ Item {
         }
     }
     
-    // 재생/일시정지 토글
+    // 재생/일시정지 토글 - 단순화
     function playPause() {
         if (mpvPlayer) {
             try {
                 // 현재 위치가 끝에 가까운지 확인
                 var duration = mpvPlayer.getProperty("duration");
                 var position = mpvPlayer.getProperty("time-pos");
-                var isNearEnd = false;
                 
                 // 비디오 끝 근처인지 확인 (끝에서 0.5초 이내)
-                if (duration > 0 && position > 0) {
-                    isNearEnd = (duration - position) < 0.5;
-                }
-                
-                // EOF에 도달했거나 끝에 매우 가까우면 처음으로 돌아가기
-                if (isNearEnd || isAtEndOfFile || (mpvPlayer.hasOwnProperty('endReached') && mpvPlayer.endReached)) {
+                if (duration > 0 && position > 0 && (duration - position) < 0.5) {
                     console.log("End of video detected - restarting from beginning");
-                    
-                    // EOF 플래그 리셋
-                    isNearEndOfFile = false;
-                    isAtEndOfFile = false;
                     
                     // 비디오 시작 부분으로 시크
                     mpvPlayer.setProperty("pause", true);
-                    mpvPlayer.setProperty("time-pos", 0.0);
+                    mpvPlayer.command(["seek", "0", "absolute", "exact"]);
                     
                     // 내부 상태 업데이트
                     root.frame = 0;
                     root.onFrameChangedEvent(0);
                     
-                    // 약간의 지연 후 재생 시작 (시크 완료 보장)
+                    // 약간의 지연 후 재생 시작
                     Qt.callLater(function() {
                         mpvPlayer.setProperty("pause", false);
                         isPlaying = true;
@@ -593,718 +537,173 @@ Item {
         }
     }
     
-    // 프레임 앞으로 이동
+    // 프레임 앞으로 이동 - seekToPosition 사용
     function stepForward(frames) {
-        if (!frames || frames < 1) frames = 1; // 기본값 설정
+        if (!frames || frames < 1) frames = 1;
         
-        if (mpvPlayer) {
-            try {
-                // 1. 먼저 일시정지 상태로 변경 (EOF 안전 처리)
-                try {
-                if (!mpvPlayer.pause) {
-                        mpvPlayer.setProperty("pause", true);
-                    }
-                } catch (pauseError) {
-                    console.warn("Cannot set pause property directly, trying command:", pauseError);
-                    try {
-                        mpvPlayer.command(["set", "pause", "yes"]);
-                    } catch (cmdError) {
-                        console.error("Both pause methods failed:", cmdError);
-                    }
-                }
-                
-                // 2. 현재 위치 확인
-                var currentPos = mpvPlayer.getProperty("time-pos");
-                // QML에서 숫자인지 확인
-                if (currentPos === undefined || currentPos === null || isNaN(currentPos)) {
-                    showMessage("Cannot determine current position");
-                    return;
-                }
-                
-                // 3. 총 프레임 수 확인
-                var duration = mpvPlayer.getProperty("duration");
-                if (duration === undefined || duration === null || isNaN(duration)) {
-                    showMessage("Cannot determine video duration");
-                    return;
-                }
-                var totalFrames = Math.floor(duration * fps);
-                
-                // 4. 현재 프레임 계산
-                var currentFrame = Math.round(currentPos * fps);
-                
-                // 5. 목표 프레임 계산 (최대 totalFrames-1)
-                var targetFrame = Math.min(totalFrames - 1, currentFrame + frames);
-                
-                // 6. 목표 프레임을 시간으로 변환
-                var targetPos = targetFrame / fps;
-                
-                // 7. 시크 명령 실행
-                console.log("Seeking forward from frame " + currentFrame + " to " + targetFrame);
-                mpvPlayer.command(["seek", targetPos.toString(), "absolute", "exact"]);
-                
-                // 8. 현재 프레임 업데이트
-                mpvPlayer.setProperty("pause", true); // 일시정지 상태 유지
-                root.frame = targetFrame;
-                root.onFrameChangedEvent(targetFrame);
-            } catch (e) {
-                console.error("Error stepping forward:", e);
-                showMessage("Error stepping forward: " + e);
-            }
-        } else {
-            showMessage("Player not initialized");
+        if (mpvPlayer && fps > 0) {
+            var currentPos = mpvPlayer.getProperty("time-pos") || 0;
+            var frameTime = frames / fps;
+            var targetPos = currentPos + frameTime;
+            
+            seekToPosition(targetPos);
+            console.log("Step forward:", frames, "frames to position:", targetPos);
         }
     }
     
-    // 프레임 뒤로 이동
+    // 프레임 뒤로 이동 - seekToPosition 사용
     function stepBackward(frames) {
-        if (!frames || frames < 1) frames = 1; // 기본값 설정
+        if (!frames || frames < 1) frames = 1;
         
-        if (mpvPlayer) {
-            try {
-                // 1. 먼저 일시정지 상태로 변경 (EOF 안전 처리)
-                try {
-                if (!mpvPlayer.pause) {
-                        mpvPlayer.setProperty("pause", true);
-                    }
-                } catch (pauseError) {
-                    console.warn("Cannot set pause property directly, trying command:", pauseError);
-                    try {
-                        mpvPlayer.command(["set", "pause", "yes"]);
-                    } catch (cmdError) {
-                        console.error("Both pause methods failed:", cmdError);
-                    }
-                }
-                
-                // 2. 현재 위치 확인
-                var currentPos = mpvPlayer.getProperty("time-pos");
-                // QML에서 숫자인지 확인
-                if (currentPos === undefined || currentPos === null || isNaN(currentPos)) {
-                    showMessage("Cannot determine current position");
-                    return;
-                }
-                
-                // 3. 현재 프레임 계산
-                var currentFrame = Math.round(currentPos * fps);
-                
-                // 4. 목표 프레임 계산 (최소 0)
-                var targetFrame = Math.max(0, currentFrame - frames);
-                
-                // 5. 목표 프레임을 시간으로 변환
-                var targetPos = targetFrame / fps;
-                
-                // 6. 시크 명령 실행
-                console.log("Seeking backward from frame " + currentFrame + " to " + targetFrame);
-                mpvPlayer.command(["seek", targetPos.toString(), "absolute", "exact"]);
-                
-                // 7. 현재 프레임 업데이트
-                mpvPlayer.setProperty("pause", true); // 일시정지 상태 유지
-                root.frame = targetFrame;
-                root.onFrameChangedEvent(targetFrame);
-            } catch (e) {
-                console.error("Error stepping backward:", e);
-                showMessage("Error stepping backward: " + e);
-            }
-        } else {
-            showMessage("Player not initialized");
+        if (mpvPlayer && fps > 0) {
+            var currentPos = mpvPlayer.getProperty("time-pos") || 0;
+            var frameTime = frames / fps;
+            var targetPos = Math.max(0, currentPos - frameTime);
+            
+            seekToPosition(targetPos);
+            console.log("Step backward:", frames, "frames to position:", targetPos);
         }
     }
     
-    // 특정 프레임으로 이동
-    function seekToFrame(targetFrame) {
+    // MPV 공식 권장 시간 기반 시크 함수 - EOF 상태 처리 강화
+    function seekToPosition(targetPosition) {
         if (mpvPlayer) {
             try {
-                console.log("VideoArea: Frame seek request -", targetFrame);
+                console.log("VideoArea: MPV time-based seek to:", targetPosition);
                 
                 // 메타데이터 업데이트 차단 설정
                 metadataUpdateBlocked = true;
                 
-                // 1. 영상 위치 검증
-                if (typeof mpvPlayer.duration !== 'undefined' && mpvPlayer.duration <= 0) {
-                    console.error("No valid video - cannot seek");
-                    metadataUpdateBlocked = false; // 차단 해제
-                    return;
+                // 1. 시간 범위 검증
+                var duration = mpvPlayer.getProperty("duration") || 0;
+                if (duration > 0) {
+                    targetPosition = Math.max(0.0, Math.min(targetPosition, duration - 0.1));
                 }
                 
-                // 2. 프레임 범위 확인 및 엄격한 검증
-                if (targetFrame < 0) {
-                    console.warn("Invalid frame (negative):", targetFrame, "correcting to 0");
-                    targetFrame = 0;
-                }
+                // 2. EOF 상태 감지 및 해제
+                var currentPos = mpvPlayer.getProperty("time-pos") || 0;
+                var isNearEOF = (duration > 0 && currentPos > duration - 1.0);
                 
-                if (root.frames > 0 && targetFrame >= root.frames) {
-                    console.warn("Invalid frame (too large):", targetFrame, "max:", root.frames-1);
-                    targetFrame = root.frames - 1;
-                }
-                
-                // 3. EOF 상태 감지 및 특별 처리 (더 넓은 감지 범위)
-                var currentPos = mpvPlayer.getProperty("time-pos");
-                var duration = mpvPlayer.getProperty("duration");
-                var isAtEOF = false;
-                
-                // EOF 감지 조건을 더 넓게 설정 (마지막 2초 이내 또는 EOF 플래그)
-                if (currentPos && duration && 
-                    (currentPos > duration - 2.0 || 
-                     isNearEndOfFile || 
-                     isAtEndOfFile ||
-                     (root.frames > 0 && root.frame >= root.frames - 3))) {
-                    isAtEOF = true;
-                    eofRecoveryFailCount++; // 실패 카운터 증가
+                if (isNearEOF) {
+                    console.log("VideoArea: EOF detected, clearing EOF state before seek");
                     
-                    console.log("VideoArea: Detected EOF state (attempt", eofRecoveryFailCount + "/" + maxEofRecoveryAttempts + ")");
-                    
-                    // 실패 횟수가 너무 많으면 강제 초기화
-                    if (eofRecoveryFailCount >= maxEofRecoveryAttempts) {
-                        console.log("VideoArea: Max EOF recovery attempts reached - FORCING COMPLETE RESET");
-                        forceCompleteReset(targetFrame);
-                        return true;
-                    }
-                    
-                    // EOF에서 벗어나기 위한 더 강력한 처리
+                    // EOF 상태 강제 해제 방법들
                     try {
-                        // 1. 먼저 일시정지 강제 설정
-                        mpvPlayer.setProperty("pause", true);
-                        
-                        // 2. 파일 재로드로 EOF 상태 완전 초기화
-                        var currentFile = mpvPlayer.getProperty("filename");
-                        if (currentFile) {
-                            console.log("VideoArea: Reloading file to escape EOF:", currentFile);
-                            mpvPlayer.command(["loadfile", currentFile]);
-                            
-                            // 3. 파일 로드 후 목표 프레임으로 시크 예약
-                            eofRecoveryTimer.targetFrame = targetFrame;
-                            eofRecoveryTimer.restart();
-                            
-                            return true;
-                        } else {
-                            // 파일명을 가져올 수 없으면 다른 방법 시도
-                            console.log("VideoArea: Cannot get filename, trying alternative EOF recovery");
-                            performAlternativeEOFRecovery(targetFrame);
-                            return true;
-                        }
+                        // 방법 1: EOF 플래그 직접 해제
+                        mpvPlayer.setProperty("eof-reached", false);
                     } catch (e) {
-                        console.error("VideoArea: EOF recovery failed:", e);
-                        // 최후의 수단으로 대체 방법 시도
-                        performAlternativeEOFRecovery(targetFrame);
-                        return true;
+                        console.log("Cannot clear eof-reached property:", e);
                     }
-                } else {
-                    // EOF 상태가 아니면 카운터 리셋
-                    if (eofRecoveryFailCount > 0) {
-                        console.log("VideoArea: EOF recovery successful - resetting fail counter");
-                        eofRecoveryFailCount = 0;
+                    
+                    try {
+                        // 방법 2: 재생 위치를 안전한 곳으로 먼저 이동
+                        var safePos = Math.max(0, duration - 2.0);
+                        mpvPlayer.setProperty("time-pos", safePos);
+                        console.log("VideoArea: Moved to safe position:", safePos);
+                    } catch (e) {
+                        console.log("Cannot set safe position:", e);
                     }
                 }
                 
-                // 4. 프레임 번호 조정 (항상 1-based 사용)
-                // 0번 프레임을 1번으로 조정, 그 외는 인덱스 +1
-                var adjustedFrame = Math.max(1, targetFrame + 1);
-                if (targetFrame === 0) {
-                    console.log("프레임 인덱스 조정: 0 -> 1 (1-based 인덱싱 적용)");
-                }
-                
-                // 5. 타임스탬프 계산 및 MPV 오류 방지를 위한 명확한 숫자 형식 지정
-                var timePos = (adjustedFrame - 1) / fps; // 0-based 시간 위치 계산
-                var numericPos = Number(timePos.toFixed(6)); // 명시적 숫자로 변환
-                
-                console.log("MPV direct seek command:", numericPos, "(프레임:", adjustedFrame, ")");
-                
-                // 6. 항상 일시정지 상태로 변경 - 정확한 프레임 포지셔닝 위해
+                // 3. 일시정지 상태로 변경
                 mpvPlayer.setProperty("pause", true);
                 
-                // 7. MPV 안전한 시크 구현 - 속성 설정만 사용
-                mpvPlayer.setProperty("time-pos", numericPos);
+                // 4. MPV 시크 명령 실행 (여러 방법 시도)
+                var seekSuccess = false;
                 
-                // 8. 내부 프레임 즉시 업데이트 (UI 응답성)
-                root.frame = targetFrame;
-                root.onFrameChangedEvent(targetFrame);
+                // 방법 1: 표준 시크 명령
+                try {
+                    mpvPlayer.command(["seek", targetPosition.toString(), "absolute", "exact"]);
+                    seekSuccess = true;
+                    console.log("VideoArea: Standard seek successful");
+                } catch (e) {
+                    console.log("Standard seek failed:", e);
+                    
+                    // 방법 2: 속성 직접 설정
+                    try {
+                        mpvPlayer.setProperty("time-pos", targetPosition);
+                        seekSuccess = true;
+                        console.log("VideoArea: Property seek successful");
+                    } catch (e2) {
+                        console.log("Property seek failed:", e2);
+                        
+                        // 방법 3: 키프레임 시크
+                        try {
+                            mpvPlayer.command(["seek", targetPosition.toString(), "absolute", "keyframes"]);
+                            seekSuccess = true;
+                            console.log("VideoArea: Keyframe seek successful");
+                        } catch (e3) {
+                            console.error("All seek methods failed:", e3);
+                        }
+                    }
+                }
                 
-                // 9. 프레임 동기화 검증 - 지연 후 실행
-                Qt.callLater(function() {
-                    syncMpvAndUiFrames(targetFrame);
-                });
+                // 5. UI 즉시 업데이트 (반응성)
+                if (fps > 0) {
+                    var calculatedFrame = Math.round(targetPosition * fps);
+                    root.frame = calculatedFrame;
+                    root.onFrameChangedEvent(calculatedFrame);
+                }
                 
-                // 10. 메타데이터 업데이트 차단 해제 예약
+                // 6. 메타데이터 업데이트 차단 해제 예약
                 metadataBlockReleaseTimer.restart();
                 
-                return true;
+                return seekSuccess;
             } catch (e) {
-                console.error("Frame seek error:", e);
-                showMessage("Frame seek error: " + e);
-                metadataUpdateBlocked = false; // 차단 해제
+                console.error("MPV seek error:", e);
+                metadataUpdateBlocked = false;
                 return false;
             }
         } else {
             console.error("Cannot seek: player not initialized");
-            showMessage("Player not initialized");
-            metadataUpdateBlocked = false; // 차단 해제
             return false;
         }
     }
     
-    // EOF 복구 타이머 (파일 재로드 후 시크)
-    Timer {
-        id: eofRecoveryTimer
-        interval: 1000  // 파일 로드 후 1초 대기
-        repeat: false
-        property int targetFrame: 0
-        
-        onTriggered: {
-            if (mpvPlayer) {
-                try {
-                    console.log("VideoArea: EOF recovery - seeking to target frame after reload:", targetFrame);
-                    
-                    // 파일이 로드된 후 목표 프레임으로 시크
-                    var adjustedFrame = Math.max(1, targetFrame + 1);
-                    var timePos = (adjustedFrame - 1) / fps;
-                    var numericPos = Number(timePos.toFixed(6));
-                    
-                    // 일시정지 상태에서 시크
-                    mpvPlayer.setProperty("pause", true);
-                    mpvPlayer.setProperty("time-pos", numericPos);
-                    
-                    // 내부 상태 업데이트
-                    root.frame = targetFrame;
-                    root.onFrameChangedEvent(targetFrame);
-                    
-                    // EOF 플래그 리셋
-                    isNearEndOfFile = false;
-                    isAtEndOfFile = false;
-                    
-                    console.log("VideoArea: EOF recovery completed - frame:", targetFrame);
-                    
-                } catch (e) {
-                    console.error("VideoArea: EOF recovery timer error:", e);
-                }
-            }
-            
-            // 메타데이터 업데이트 차단 해제
-            metadataUpdateBlocked = false;
-        }
-    }
-    
-    // 대체 EOF 복구 함수 (파일 재로드가 실패할 경우)
-    function performAlternativeEOFRecovery(targetFrame) {
-        try {
-            console.log("VideoArea: Attempting alternative EOF recovery for frame:", targetFrame);
-            
-            // 1. 강력한 EOF 탈출 시도
+    // 특정 프레임으로 이동 - 시간 변환 후 seekToPosition 호출
+    function seekToFrame(targetFrame) {
+        if (mpvPlayer) {
             try {
-                // EOF 플래그 강제 해제
-                mpvPlayer.command(["set", "eof-reached", "no"]);
-            } catch (e) {
-                console.log("VideoArea: Cannot clear EOF flag:", e);
-            }
-            
-            // 2. 여러 MPV 속성을 순차적으로 리셋 시도
-            try {
-                mpvPlayer.setProperty("pause", true);
-            } catch (e) {
-                try {
-                    mpvPlayer.command(["set", "pause", "yes"]);
-                } catch (e2) {
-                    console.error("VideoArea: Cannot pause player:", e2);
-                }
-            }
-            
-            // 3. 강제로 처음 위치로 리셋 (여러 방법 시도)
-            var resetSuccess = false;
-            
-            // 방법 1: 직접 시간 위치 설정
-            try {
-                mpvPlayer.setProperty("time-pos", 0.0);
-                mpvPlayer.setProperty("time-start", 0.0);
-                resetSuccess = true;
-                console.log("VideoArea: Reset to start using time-pos");
-            } catch (e1) {
-                // 방법 2: 시크 명령 (exact)
-                try {
-                    mpvPlayer.command(["seek", "0", "absolute", "exact"]);
-                    resetSuccess = true;
-                    console.log("VideoArea: Reset to start using seek exact");
-                } catch (e2) {
-                    // 방법 3: 일반 시크 명령
-                    try {
-                        mpvPlayer.command(["seek", "0", "absolute"]);
-                        resetSuccess = true;
-                        console.log("VideoArea: Reset to start using seek normal");
-                    } catch (e3) {
-                        // 방법 4: 위치 백분율로 시크
-                        try {
-                            mpvPlayer.command(["seek", "0", "absolute-percent"]);
-                            resetSuccess = true;
-                            console.log("VideoArea: Reset to start using percent");
-                        } catch (e4) {
-                            console.error("VideoArea: All reset methods failed");
-                        }
-                    }
-                }
-            }
-            
-            // 4. 강제 프레임 번호 리셋
-            root.frame = 0;
-            root.onFrameChangedEvent(0);
-            
-            // 5. EOF 플래그 리셋
-            isNearEndOfFile = false;
-            isAtEndOfFile = false;
-            
-            // 6. 지연 후 목표 프레임으로 시크 시도
-            if (resetSuccess) {
-                alternativeRecoveryTimer.targetFrame = targetFrame;
-                alternativeRecoveryTimer.restart();
-            } else {
-                // 모든 방법이 실패하면 강제 UI 업데이트만
-                console.log("VideoArea: All methods failed, forcing UI update only");
-                forceUIUpdate(targetFrame);
-            }
-            
-        } catch (e) {
-            console.error("VideoArea: Alternative EOF recovery failed:", e);
-            // 최후의 수단: 강제 UI 업데이트
-            forceUIUpdate(targetFrame);
-        }
-    }
-    
-    // 강제 UI 업데이트 함수 (MPV가 완전히 응답하지 않을 때)
-    function forceUIUpdate(targetFrame) {
-        console.log("VideoArea: Forcing UI update to frame:", targetFrame);
-        
-        // UI 상태만 강제로 업데이트
-        root.frame = targetFrame;
-        root.onFrameChangedEvent(targetFrame);
-        
-        // EOF 플래그 강제 리셋
-        isNearEndOfFile = false;
-        isAtEndOfFile = false;
-        
-        // 메타데이터 차단 해제
-        metadataUpdateBlocked = false;
-        
-        // 사용자에게 알림
-        showMessage("Frame position updated (MPV may be unresponsive)");
-    }
-    
-    // 강제 완전 리셋 함수 (모든 복구 방법이 실패했을 때의 최후 수단)
-    function forceCompleteReset(targetFrame) {
-        console.log("VideoArea: *** EMERGENCY RESET *** - All recovery methods failed, performing complete reset");
-        
-        try {
-            // 1단계: 모든 타이머 중지
-            eofRecoveryTimer.stop();
-            alternativeRecoveryTimer.stop();
-            secondSeekTimer.stop();
-            finalVerifyTimer.stop();
-            metadataBlockReleaseTimer.stop();
-            
-            // 2단계: 모든 상태 플래그 강제 리셋
-            isNearEndOfFile = false;
-            isAtEndOfFile = false;
-            metadataUpdateBlocked = false;
-            eofRecoveryFailCount = 0; // 카운터 리셋
-            
-            // 3단계: MPV 강제 정지 및 리셋 시도
-            try {
-                console.log("VideoArea: Emergency - stopping all MPV operations");
-                mpvPlayer.command(["stop"]);
-            } catch (e) {
-                console.log("VideoArea: MPV stop failed:", e);
-            }
-            
-            // 4단계: 현재 파일 재로드 시도
-            var currentFile = root.filename;
-            if (currentFile && currentFile !== "") {
-                console.log("VideoArea: Emergency - reloading file:", currentFile);
+                console.log("VideoArea: Frame-to-time seek request for frame:", targetFrame);
                 
-                // 파일 재로드
-                try {
-                    mpvPlayer.command(["loadfile", currentFile, "replace"]);
-                    
-                    // 재로드 후 목표 위치로 시크하는 타이머 예약
-                    emergencyRecoveryTimer.targetFrame = targetFrame;
-                    emergencyRecoveryTimer.restart();
-                    
-                    console.log("VideoArea: Emergency file reload initiated, target frame:", targetFrame);
-                    return;
-                } catch (e) {
-                    console.error("VideoArea: Emergency file reload failed:", e);
+                // 1. 프레임 범위 검증
+                if (targetFrame < 0) {
+                    targetFrame = 0;
                 }
-            }
-            
-            // 5단계: 파일 재로드도 실패하면 처음 위치로 강제 이동
-            console.log("VideoArea: Emergency - forcing reset to frame 0");
-            try {
-                mpvPlayer.setProperty("pause", true);
-                mpvPlayer.setProperty("time-pos", 0.0);
+                if (root.frames > 0 && targetFrame >= root.frames) {
+                    targetFrame = root.frames - 1;
+                }
                 
-                // UI 즉시 업데이트
-                root.frame = 0;
-                root.onFrameChangedEvent(0);
+                // 2. 프레임을 시간으로 변환
+                if (fps <= 0) {
+                    console.error("Invalid FPS - cannot convert frame to time");
+                    return false;
+                }
                 
-                showMessage("Video reset to beginning due to playback issues");
+                var targetPosition = targetFrame / fps;
+                
+                // 3. 시간 기반 시크 실행 (단순화)
+                return seekToPosition(targetPosition);
                 
             } catch (e) {
-                console.error("VideoArea: Emergency reset to frame 0 failed:", e);
-                
-                // 6단계: 최후의 수단 - UI만 강제 업데이트
-                console.log("VideoArea: Last resort - UI-only reset");
-                root.frame = Math.max(0, Math.min(targetFrame, root.frames - 1));
-                root.onFrameChangedEvent(root.frame);
-                
-                showMessage("Emergency: UI reset only (video player unresponsive)");
+                console.error("Frame seek error:", e);
+                return false;
             }
-            
-        } catch (e) {
-            console.error("VideoArea: Complete emergency reset failed:", e);
-            
-            // 절대 최후의 수단: UI 상태만 리셋
-            root.frame = 0;
-            root.onFrameChangedEvent(0);
-            isNearEndOfFile = false;
-            isAtEndOfFile = false;
-            metadataUpdateBlocked = false;
-            eofRecoveryFailCount = 0;
-            
-            showMessage("Critical error: Video player requires restart");
+        } else {
+            console.error("Cannot seek: player not initialized");
+            return false;
         }
     }
     
-    // 대체 복구 타이머
-    Timer {
-        id: alternativeRecoveryTimer
-        interval: 500
-        repeat: false
-        property int targetFrame: 0
-        
-        onTriggered: {
-            if (mpvPlayer) {
-                try {
-                    console.log("VideoArea: Alternative recovery - seeking to frame:", targetFrame);
-                    
-                    var adjustedFrame = Math.max(1, targetFrame + 1);
-                    var timePos = (adjustedFrame - 1) / fps;
-                    var numericPos = Number(timePos.toFixed(6));
-                    
-                    // 강제로 내부 상태 업데이트 (MPV가 응답하지 않아도)
-                    root.frame = targetFrame;
-                    root.onFrameChangedEvent(targetFrame);
-                    
-                    // EOF 플래그 강제 리셋
-                    isNearEndOfFile = false;
-                    isAtEndOfFile = false;
-                    
-                    console.log("VideoArea: Alternative recovery forced update to frame:", targetFrame);
-                    
-                } catch (e) {
-                    console.error("VideoArea: Alternative recovery timer error:", e);
-                }
-            }
-            
-            metadataUpdateBlocked = false;
-        }
-    }
+
     
-    // 비상 복구 타이머 (강제 파일 재로드 후 시크)
-    Timer {
-        id: emergencyRecoveryTimer
-        interval: 2000  // 파일 재로드를 위해 2초 대기
-        repeat: false
-        property int targetFrame: 0
-        
-        onTriggered: {
-            if (mpvPlayer) {
-                try {
-                    console.log("VideoArea: Emergency recovery - seeking to target frame after complete reload:", targetFrame);
-                    
-                    // 일시정지 상태 확인
-                    mpvPlayer.setProperty("pause", true);
-                    
-                    // 안전한 프레임으로 시크 (처음이 아닌 경우)
-                    if (targetFrame > 0 && targetFrame < root.frames - 5) {
-                        var adjustedFrame = Math.max(1, targetFrame + 1);
-                        var timePos = (adjustedFrame - 1) / fps;
-                        var numericPos = Number(timePos.toFixed(6));
-                        
-                        mpvPlayer.setProperty("time-pos", numericPos);
-                        console.log("VideoArea: Emergency recovery - sought to frame:", targetFrame);
-                    } else {
-                        // 문제가 있는 프레임이면 처음으로
-                        mpvPlayer.setProperty("time-pos", 0.0);
-                        targetFrame = 0;
-                        console.log("VideoArea: Emergency recovery - reset to frame 0 for safety");
-                    }
-                    
-                    // UI 상태 업데이트
-                    root.frame = targetFrame;
-                    root.onFrameChangedEvent(targetFrame);
-                    
-                    // 모든 플래그 리셋
-                    isNearEndOfFile = false;
-                    isAtEndOfFile = false;
-                    metadataUpdateBlocked = false;
-                    eofRecoveryFailCount = 0; // 성공했으므로 카운터 리셋
-                    
-                    console.log("VideoArea: Emergency recovery completed successfully");
-                    showMessage("Video successfully recovered from playback error");
-                    
-                } catch (e) {
-                    console.error("VideoArea: Emergency recovery timer failed:", e);
-                    
-                    // 마지막 시도: UI만 업데이트
-                    root.frame = 0;
-                    root.onFrameChangedEvent(0);
-                    isNearEndOfFile = false;
-                    isAtEndOfFile = false;
-                    metadataUpdateBlocked = false;
-                    eofRecoveryFailCount = 0;
-                    
-                    showMessage("Recovery partially successful - UI reset only");
-                }
-            }
-        }
-    }
+
     
-    // 영상 끝 감지 플래그
-    property bool isNearEndOfFile: false
-    property bool isAtEndOfFile: false
+
     
-    // EOF 복구 실패 카운터 (무한 루프 방지)
-    property int eofRecoveryFailCount: 0
-    property int maxEofRecoveryAttempts: 3
+
     
-    // 새로운 함수: MPV와 UI 프레임 동기화 (영상 끝에서 비활성화)
-    function syncMpvAndUiFrames(targetFrame) {
-        if (!mpvPlayer) return;
-        
-        // 영상 끝에서는 동기화 중단
-        if (isNearEndOfFile || isAtEndOfFile) {
-            console.log("Sync mediator: Near/at end of file - sync disabled");
-            return;
-        }
-        
-        try {
-            var actualPos = mpvPlayer.getProperty("time-pos");
-            if (actualPos !== undefined && actualPos !== null) {
-                // 영상 끝 근처 감지 (마지막 1초 이내)
-                var duration = mpvPlayer.getProperty("duration");
-                if (duration && actualPos > duration - 1.0) {
-                    console.log("Sync mediator: Near end detected - disabling sync");
-                    isNearEndOfFile = true;
-                    return;
-                }
-                
-                // MPV의 실제 프레임 계산 (시간 -> 프레임)
-                var rawMpvFrame = Math.round(actualPos * fps);
-                var actualFrame = rawMpvFrame;
-                
-                // 마지막 5프레임 이내에서는 동기화 중단
-                if (root.frames > 0 && actualFrame >= root.frames - 5) {
-                    console.log("Sync mediator: Near final frames - disabling sync");
-                    isNearEndOfFile = true;
-                    return;
-                }
-                
-                // 정상적인 범위인지 확인
-                if (actualFrame < 0 || (root.frames > 0 && actualFrame >= root.frames)) {
-                    console.warn("Sync mediator: Invalid MPV frame detected:", actualFrame);
-                    return;
-                }
-                
-                console.log("Sync mediator: MPV raw frame=", rawMpvFrame, ", adjusted frame=", actualFrame, ", UI frame=", targetFrame);
-                
-                // MPV와 UI 프레임 차이 로깅만 (강제 동기화 완전 비활성화)
-                if (Math.abs(actualFrame - targetFrame) > 10) {
-                    console.log("Sync mediator: Frame difference detected - MPV:", actualFrame, "UI:", targetFrame);
-                    console.log("Sync mediator: 사용자 시크 우선 - MPV 동기화 생략");
-                    
-                    // *** 중요: 강제 동기화 완전 제거 - 사용자 시크 우선 처리 ***
-                    // 더 이상 MPV 프레임으로 UI를 강제 업데이트하지 않음
-                    return;
-                }
-            }
-        } catch (e) {
-            console.error("Sync mediator error:", e);
-        }
-    }
-    
-    // 두 번째 시크 타이머 (setTimeout 대체)
-    Timer {
-        id: secondSeekTimer
-        interval: 100
-        repeat: false
-        property real timePos: 0
-        property int targetFrame: 0
-        
-        onTriggered: {
-            if (mpvPlayer) {
-                try {
-                    // 명확한 숫자 형식으로 변환 (MPV 오류 방지)
-                    var numericPos = Number(timePos.toFixed(6));
-                    
-                    // 안전하게 속성 직접 설정 - 명령 대신
-                    mpvPlayer.setProperty("pause", true);
-                    mpvPlayer.setProperty("time-pos", numericPos);
-                    
-                    // 현재 프레임 상태 재확인 및 시그널 발생
-                    var actualPos = mpvPlayer.getProperty("time-pos");
-                    if (actualPos !== undefined && actualPos !== null) {
-                        var actualFrame = Math.round(actualPos * fps);
-                        console.log("Second verification: requested=", targetFrame, "actual=", actualFrame);
-                        
-                        if (Math.abs(actualFrame - targetFrame) > 2) {
-                            console.log("Frame still mismatched, performing second correction");
-                            
-                            // MPV 상태에 맞추어 UI 업데이트 (실제 상태에 맞춤)
-                            root.frame = actualFrame;
-                            root.onFrameChangedEvent(actualFrame);
-                        }
-                    }
-                } catch (e) {
-                    console.error("Second seek timer error:", e);
-                }
-            }
-        }
-    }
-    
-    // 최종 검증 타이머 (완전한 동기화 보장)
-    Timer {
-        id: finalVerifyTimer
-        interval: 250
-        repeat: false
-        property real timePos: 0
-        property int targetFrame: 0
-        
-        onTriggered: {
-            if (mpvPlayer) {
-                try {
-                    // 최종 상태 검증
-                    mpvPlayer.setProperty("pause", true);
-                    var actualPos = mpvPlayer.getProperty("time-pos");
-                    if (actualPos !== undefined && actualPos !== null) {
-                        var actualFrame = Math.round(actualPos * fps);
-                        console.log("Verification: MPV frame=", actualFrame, "_internalFrame=", targetFrame);
-                        
-                        // 여전히 불일치가 있는지 확인 (2프레임 이상 차이 시)
-                        if (Math.abs(actualFrame - targetFrame) > 2) {
-                            console.log("Frame mismatch detected - synchronizing");
-                            
-                            // MPV의 실제 상태를 기준으로 UI 동기화
-                            root.frame = actualFrame;
-                            root.onFrameChangedEvent(actualFrame);
-                            
-                            // 최종 확인 메시지
-                            console.log("Frame seek final confirmation complete:", actualFrame);
-                            console.log("Stabilization period ended");
-                        } else {
-                            console.log("Frame seek final confirmation complete:", targetFrame);
-                            console.log("Stabilization period ended");
-                        }
-                    }
-                } catch (e) {
-                    console.error("Final verification timer error:", e);
-                }
-            }
-        }
-    }
+
     
     // 메타데이터 업데이트 차단 해제 타이머
     Timer {
@@ -1465,11 +864,32 @@ Item {
         return false;
     }
     
-    // Keyboard focus
+    // Keyboard focus - MPV 공식 권장 시간 기반 네비게이션
     focus: true
     Keys.onSpacePressed: playPause()
-    Keys.onLeftPressed: stepBackward(1)
-    Keys.onRightPressed: stepForward(1)
+    Keys.onLeftPressed: {
+        // 1프레임 뒤로 - seekToPosition 사용
+        if (mpvPlayer && fps > 0) {
+            var currentPos = mpvPlayer.getProperty("time-pos") || 0;
+            var frameTime = 1.0 / fps;
+            var targetPos = Math.max(0, currentPos - frameTime);
+            
+            seekToPosition(targetPos);
+            console.log("Frame backward to:", targetPos);
+        }
+    }
+    Keys.onRightPressed: {
+        // 1프레임 앞으로 - seekToPosition 사용
+        if (mpvPlayer && fps > 0) {
+            var currentPos = mpvPlayer.getProperty("time-pos") || 0;
+            var duration = mpvPlayer.getProperty("duration") || 0;
+            var frameTime = 1.0 / fps;
+            var targetPos = Math.min(duration - 0.1, currentPos + frameTime);
+            
+            seekToPosition(targetPos);
+            console.log("Frame forward to:", targetPos);
+        }
+    }
     
     // Function to fetch and update video metadata
     function fetchVideoMetadata() {

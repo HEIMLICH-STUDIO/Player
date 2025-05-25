@@ -176,9 +176,14 @@ MpvObject::MpvObject(QQuickItem * parent)
     // 안정적인 GPU 설정
     mpv_set_option_string(mpv, "gpu-api", "auto");
     
-    // 시크 관련 설정 최적화
-    mpv_set_option_string(mpv, "hr-seek", "yes");
-    mpv_set_option_string(mpv, "hr-seek-framedrop", "yes");
+    // MPV 공식 권장 시크 설정 - 시간 기반 시크 최적화
+    mpv_set_option_string(mpv, "hr-seek", "yes");  // 고정밀 시크 활성화
+    mpv_set_option_string(mpv, "hr-seek-framedrop", "yes");  // 시크 중 프레임 드롭 허용
+    mpv_set_option_string(mpv, "hr-seek-demuxer-offset", "0");  // 디먹서 오프셋 제거
+    
+    // 시간 기반 시크에 최적화된 설정
+    mpv_set_option_string(mpv, "seek-mode", "absolute");  // 절대 시크 모드
+    mpv_set_option_string(mpv, "video-sync", "audio");  // 오디오 기준 동기화
     
     // 프레임 드랍 제한 - 최소화
     mpv_set_option_string(mpv, "framedrop", "no");
@@ -190,19 +195,11 @@ MpvObject::MpvObject(QQuickItem * parent)
     mpv_set_option_string(mpv, "demuxer-max-bytes", "150M");  // 100M에서 150M으로 증가
     mpv_set_option_string(mpv, "demuxer-max-back-bytes", "150M");  // 100M에서 150M으로 증가
     
-    // 추가 시크 성능 관련 설정
-    mpv_set_option_string(mpv, "hr-seek-demuxer-offset", "0");  // 시크 정확도 개선
-    mpv_set_option_string(mpv, "video-sync-max-factor", "1");  // 비디오 싱크 안정성 개선
-    mpv_set_option_string(mpv, "video-latency-hacks", "yes");  // 렌더링 지연 감소
-    mpv_set_option_string(mpv, "opengl-swapinterval", "1");  // 수직 동기화 활성화 (티어링 방지)
-    
     // 렌더링 성능 최적화
     mpv_set_option_string(mpv, "gpu-dumb-mode", "no");
     mpv_set_option_string(mpv, "vd-lavc-threads", "4");
-    
-    // 동기화 설정 조정
-    mpv_set_option_string(mpv, "video-sync", "display-resample");
-    mpv_set_option_string(mpv, "video-timing-offset", "0");
+    mpv_set_option_string(mpv, "video-latency-hacks", "yes");  // 렌더링 지연 감소
+    mpv_set_option_string(mpv, "opengl-swapinterval", "1");  // 수직 동기화 활성화 (티어링 방지)
     
     // 초기 속도 설정
     mpv_set_option_string(mpv, "speed", "1.0");
@@ -577,7 +574,7 @@ void MpvObject::setProperty(const QString& name, const QVariant& value)
     }
 }
 
-// 새로운 함수: 안전하고 정확한 시크 처리
+// MPV 공식 권장 시간 기반 시크 구현
 void MpvObject::seekToPosition(double pos)
 {
     try {
@@ -585,106 +582,35 @@ void MpvObject::seekToPosition(double pos)
             return;
         }
         
-        // 중요: 시크 전에 지연 중인 타이머 취소하고 마지막 시크 시간 업데이트
+        // 시크 시간 기록
         m_lastSeekTime = QDateTime::currentMSecsSinceEpoch();
         
-        // 시크하면 endReached 상태 초기화
+        // endReached 상태 초기화
         resetEndReached();
         
         // 안전한 시크 범위 계산
-        double safePosition = qBound(0.0, pos, m_duration - 0.5);
+        double safePosition = qBound(0.0, pos, m_duration - 0.1);
         
-        // 영상 끝 부분에 대한 안전 체크
-        bool isTooCloseToEnd = (m_duration - safePosition) < 0.5;
-        double finalSeekPos = safePosition;
+        qDebug() << "MPV seek to:" << safePosition;
         
-        // 너무 끝에 가까우면 더 안전한 위치로 조정
-        if (isTooCloseToEnd) {
-            finalSeekPos = m_duration - 0.75; // 끝에서 약간 더 떨어진 위치
-        }
+        // MPV 공식 권장 시간 기반 시크 - 단순하고 안정적
+        // hr-seek를 사용하여 정확한 시크 수행
+        mpv_command_string(mpv, QString("seek %1 absolute exact").arg(safePosition).toUtf8().constData());
         
-        qDebug() << "MPV seek to:" << finalSeekPos;
+        // 위치 정보 즉시 업데이트 (UI 반응성)
+        m_position = safePosition;
+        m_lastPosition = safePosition;
+        emit positionChanged(safePosition);
         
-        // 1. 먼저 일시정지 설정
-        mpv_command_string(mpv, "set pause yes");
-        if (!m_pause) {
-            m_pause = true;
-            emit pauseChanged(true);
-            emit playingChanged(false);
-        }
-        
-        // 2. 정확한 시크 수행 (두 가지 방법으로 동시에) - 중요 부분
-        // 2.1 MPV 속성 직접 설정 (UI 즉시 반응)
-        mpv_set_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &finalSeekPos);
-        
-        // 2.2 명령어로 정확한 시크 실행 (더 정밀한 프레임 위치)
-        mpv_command_string(mpv, QString("seek %1 absolute exact").arg(finalSeekPos).toUtf8().constData());
-        
-        // 3. 위치 정보 즉시 업데이트
-        m_position = finalSeekPos;
-        m_lastPosition = finalSeekPos;
-        emit positionChanged(finalSeekPos);
-        
-        // 4. UI 강제 갱신
-        update();
-        
-        // 5. 프레임 위치 계산 및 시그널 발생
+        // 프레임 위치 계산 및 시그널 발생
         if (m_fps > 0) {
-            int frame = qRound(finalSeekPos * m_fps);
+            int frame = qRound(safePosition * m_fps);
             emit seekRequested(frame);
         }
         
-        // 6. 시크 후 정확한 위치 확인을 위한 타이머 (50ms)
-        QTimer::singleShot(50, this, [this, finalSeekPos]() {
-            try {
-                // 시크된 위치 확인
-                double verifyPos = finalSeekPos;
-                mpv_set_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &verifyPos);
-                
-                // 위치 정보 다시 업데이트
-                m_position = verifyPos;
-                emit positionChanged(verifyPos);
-                
-                // 프레임 위치 다시 계산 및 시그널 발생
-                if (m_fps > 0) {
-                    int frame = qRound(verifyPos * m_fps);
-                    emit seekRequested(frame);
-                }
-                
-                // 강제 업데이트
+        // UI 강제 갱신
                 update();
-            } catch (...) {
-                qWarning() << "Error in first seek verification";
-            }
-        });
         
-        // 7. 두 번째 검증 타이머 (100ms - 더 확실한 검증)
-        QTimer::singleShot(150, this, [this, finalSeekPos]() {
-            try {
-                // 최종 위치 확인
-                QVariant posVal = getProperty("time-pos");
-                if (posVal.isValid()) {
-                    double actualPos = posVal.toDouble();
-                    if (std::abs(actualPos - finalSeekPos) > 0.08) {
-                        // 위치가 다르면 다시 정확하게 시크
-                        double fixPos = finalSeekPos;
-                        mpv_set_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &fixPos);
-                        
-                        // 위치 정보 다시 업데이트
-                        m_position = fixPos;
-                        emit positionChanged(fixPos);
-                        
-                        // 프레임 위치 시그널 재발생
-                        if (m_fps > 0) {
-                            int frame = qRound(fixPos * m_fps);
-                            emit seekRequested(frame);
-                        }
-                    }
-                }
-            } catch (...) {
-                qWarning() << "Error in second seek verification";
-            }
-        });
     } catch (const std::exception& e) {
         qCritical() << "Exception in seekToPosition:" << e.what();
     } catch (...) {

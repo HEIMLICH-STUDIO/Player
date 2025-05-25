@@ -509,56 +509,37 @@ Rectangle {
         anchors.top: parent.top
         height: 40
         
-        // 타임라인 바
-        FrameTimelineBar {
+        // 새로운 시간 기반 타임라인 바
+        TimelineBar {
             id: timelineBar
             anchors.fill: parent
             
-            // FrameTimelineBar에 currentFrame, totalFrames, fps 바인딩
-            currentFrame: root.currentFrame
-            totalFrames: root.totalFrames
+            // 시간 기반 속성 바인딩 (MPV 공식 권장 방식)
+            currentPosition: root.timelineSync ? root.timelineSync.position : 0.0
+            duration: root.timelineSync ? root.timelineSync.duration : 0.0
             fps: root.fps
             isPlaying: root.isPlaying
             
-            // 중요: MPV 객체 전달 - 반드시 null이 아닌지 검증
+            // MPV 객체 및 TimelineSync 전달
             mpvObject: root.mpvObject
-            
-            // TimelineSync 객체 전달 (중앙 동기화 허브)
             timelineSync: root.timelineSync
             
-            // currentFrame 변경 감지 - 타임라인 내부 변경이 외부로 전달되도록
-            onCurrentFrameChanged: {
-                // 내부-외부 값이 다를 때만 업데이트 (무한 루프 방지)
-                if (root.currentFrame !== currentFrame) {
-                    root.currentFrame = currentFrame;
-                }
-            }
-            
-            // seekRequested 시그널을 상위로 올림 - 관대한 오버플로우 방지
-            onSeekRequested: function(frame) {
-                console.log("ControlBar: Frame seek request -", frame);
+            // 시간 기반 시크 요청 처리
+            onSeekRequested: function(position) {
+                console.log("ControlBar: Time-based seek request -", position);
                 
-                // 관대한 프레임 범위 검증 (극단적인 경우만 보정)
-                var safeFrame = frame;
-                if (root.totalFrames > 0) {
-                    // 극단적인 오버플로우만 보정 (10프레임 이상 초과)
-                    if (frame >= root.totalFrames + 10) {
-                        console.warn("ControlBar: Extreme seek overflow -", frame, "->", root.totalFrames - 1);
-                        safeFrame = root.totalFrames - 1;
-                    } else if (frame < -10) {  // 극단적인 음수만 보정
-                        console.warn("ControlBar: Extreme seek underflow -", frame, "-> 0");
-                        safeFrame = 0;
+                // TimelineSync를 통한 시간 기반 시크 (MPV 공식 권장)
+                if (root.timelineSync) {
+                    root.timelineSync.seekToPosition(position, true);
+                }
+                
+                // 프레임 기반 호환성을 위한 변환 (기존 코드와의 호환성)
+                if (root.fps > 0) {
+                    var frameEquivalent = Math.round(position * root.fps);
+                    if (root.currentFrame !== frameEquivalent) {
+                        root.currentFrame = frameEquivalent;
                     }
-                    // 경미한 오버플로우는 MPV가 자체적으로 처리하도록 허용
                 }
-                
-                // 내부 currentFrame도 함께 업데이트 (동기화 보장)
-                if (root.currentFrame !== safeFrame) {
-                    root.currentFrame = safeFrame;
-                }
-                
-                // 상위 컴포넌트로 프레임 시그널 전달 (원본값 전달로 변경)
-                root.seekToFrameRequested(frame);  // safeFrame이 아닌 원본 frame 전달
             }
         }
     }

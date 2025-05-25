@@ -10,11 +10,7 @@ TimelineSync::TimelineSync(QObject *parent)
     m_syncTimer->setInterval(16);  // 약 60fps로 동기화 (16ms)
     connect(m_syncTimer, &QTimer::timeout, this, &TimelineSync::handleSyncTimer);
     
-    // 검증 타이머 초기화 - 시크 동작 후 위치 확인
-    m_verifyTimer = new QTimer(this);
-    m_verifyTimer->setSingleShot(true);
-    m_verifyTimer->setInterval(100);
-    connect(m_verifyTimer, &QTimer::timeout, this, &TimelineSync::handleVerificationTimer);
+
     
     // 시크 완료 타이머 - 시크 완료 후 상태 정리
     m_seekTimer = new QTimer(this);
@@ -77,7 +73,7 @@ void TimelineSync::connectMpv(MpvObject* mpv)
     m_syncTimer->start();
 }
 
-// 특정 프레임으로 시크
+// 특정 프레임으로 시크 - 시간 기반 변환 후 seekToPosition 호출
 void TimelineSync::seekToFrame(int frame, bool exact)
 {
     if (!m_mpv || m_duration <= 0) return;
@@ -88,53 +84,50 @@ void TimelineSync::seekToFrame(int frame, bool exact)
     // 프레임을 시간 위치로 변환
     double targetPos = calculatePositionFromFrame(frame);
     
+    // 시간 기반 시크 실행 (MPV 공식 권장 방식)
+    seekToPosition(targetPos, exact);
+}
+
+// 특정 시간 위치로 시크 - MPV 공식 권장 시간 기반 방식
+void TimelineSync::seekToPosition(double position, bool exact)
+{
+    if (!m_mpv || m_duration <= 0) return;
+    
+    // 위치 범위 검증
+    position = qBound(0.0, position, m_duration - 0.1);
+    
+    // 시크 진행 중 플래그 설정
+    m_seekInProgress = true;
+    
     // 재생 중이면 일시 정지
     bool wasPlaying = m_isPlaying;
     if (wasPlaying) {
         m_mpv->pause();
     }
     
-    // 시크 진행 중 플래그 설정
-    m_seekInProgress = true;
-    
-    // 현재 프레임 즉시 업데이트(UI 반응성)
-    m_currentFrame = frame;
-    emit currentFrameChanged(m_currentFrame);
-    
-    // MPV 명령 실행
+    // MPV 공식 권장 시간 기반 시크 직접 실행
     if (exact) {
-        // 정확한 프레임 위치 지정
-        m_mpv->command(QVariantList() << "seek" << targetPos << "absolute" << "exact");
-        m_mpv->setProperty("time-pos", targetPos);
+        // 정확한 시간 위치 지정 (hr-seek 사용)
+        m_mpv->command(QVariantList() << "seek" << position << "absolute" << "exact");
     } else {
         // 빠른 키프레임 시크
-        m_mpv->command(QVariantList() << "seek" << targetPos << "absolute" << "keyframes");
+        m_mpv->command(QVariantList() << "seek" << position << "absolute" << "keyframes");
     }
     
-    // 위치 정보 업데이트
-    m_position = targetPos;
+    // 위치 정보 즉시 업데이트 (UI 반응성)
+    m_position = position;
     emit positionChanged(m_position);
     
-    // 검증 타이머 시작
-    m_verifyTimer->start();
+    // 해당 위치의 프레임 계산 및 업데이트
+    if (m_fps > 0) {
+        int frame = qRound(position * m_fps);
+        frame = qBound(0, frame, m_totalFrames - 1);
+        m_currentFrame = frame;
+        emit currentFrameChanged(m_currentFrame);
+    }
     
-    // 시크 완료 타이머 시작
-    m_seekTimer->start();
-}
-
-// 특정 시간 위치로 시크
-void TimelineSync::seekToPosition(double position, bool exact)
-{
-    if (!m_mpv || m_duration <= 0) return;
-    
-    // 위치 범위 검증
-    position = qBound(0.0, position, m_duration);
-    
-    // 해당 위치의 프레임 계산
-    int frame = calculateFrameFromPosition(position);
-    
-    // 프레임 기반 시크 실행
-    seekToFrame(frame, exact);
+         // 시크 완료 타이머 시작
+     m_seekTimer->start();
 }
 
 // 드래그 시작
@@ -308,52 +301,7 @@ void TimelineSync::handleSyncTimer()
     }
 }
 
-// 검증 타이머 핸들러 - 시크 후 위치 검증
-void TimelineSync::handleVerificationTimer()
-{
-    if (!m_mpv) return;
-    
-    QMutexLocker locker(&m_syncMutex);
-    
-    try {
-        // 정확한 현재 위치 가져오기
-        QVariant posVar = m_mpv->getProperty("time-pos");
-        if (!posVar.isValid()) return;
-        
-        double verifiedPos = posVar.toDouble();
-        
-        // 이전 위치와 비교하여 업데이트
-        if (std::abs(verifiedPos - m_position) > 0.01) {
-            // 위치 업데이트
-            m_position = verifiedPos;
-            emit positionChanged(m_position);
-            
-            // 프레임 업데이트
-            int verifiedFrame = calculateFrameFromPosition(verifiedPos);
-            
-            // 현재 프레임 업데이트 (필요한 경우)
-            if (verifiedFrame != m_currentFrame) {
-                m_currentFrame = verifiedFrame;
-                emit currentFrameChanged(m_currentFrame);
-            }
-            
-            // 위치가 크게 다른 경우, 직접 다시 시크
-            if (m_isDragging && m_mpv->isPaused()) {
-                // 드래그 중이면 MPV 위치를 정확하게 동기화
-                double targetPos = calculatePositionFromFrame(m_currentFrame);
-                m_mpv->seekToPosition(targetPos);
-            }
-        }
-        
-        // 드래그 중이 아니면 시크 완료로 표시
-        if (!m_isDragging) {
-            m_seekInProgress = false;
-        }
-    } catch (...) {
-        qWarning() << "Error in verification timer handler";
-        m_seekInProgress = false;
-    }
-}
+
 
 // 시크 완료 처리
 void TimelineSync::completeSeek()

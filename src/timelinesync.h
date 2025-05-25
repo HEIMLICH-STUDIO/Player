@@ -29,7 +29,7 @@ public:
     // MPV 객체 연결
     void connectMpv(MpvObject* mpv);
     
-    // QML에서 호출 가능한 메서드들
+    // QML에서 호출 가능한 메서드들 - MPV 공식 권장 시간 기반 시크 사용
     Q_INVOKABLE void seekToFrame(int frame, bool exact = true);
     Q_INVOKABLE void seekToPosition(double position, bool exact = true);
     Q_INVOKABLE void beginDragging();
@@ -79,7 +79,6 @@ private slots:
     
     // 내부 동기화 핸들러
     void handleSyncTimer();
-    void handleVerificationTimer();
     void completeSeek();
     
 private:
@@ -102,9 +101,8 @@ private:
     bool m_isDragging = false;
     bool m_seekInProgress = false;
     
-    // 동기화 타이머
+    // 동기화 타이머 - MPV 공식 권장 방식에 맞게 간소화
     QTimer* m_syncTimer = nullptr;
-    QTimer* m_verifyTimer = nullptr;
     QTimer* m_seekTimer = nullptr;
     
     // 스레드 안전성을 위한 뮤텍스

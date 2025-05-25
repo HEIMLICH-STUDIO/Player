@@ -155,9 +155,10 @@ Item {
         
         // 드래그 중이 아니고, 안정화 중이 아니고, 현재 프레임과 차이가 있을 때만 외부에 알림
         if (!isDragging && !seekStabilizing && _internalFrame !== currentFrame) {
-            // TimelineSync를 통한 시크 요청 (우선)
-            if (timelineSync) {
-                timelineSync.seekToFrame(_internalFrame, true);
+            // TimelineSync를 통한 시간 기반 시크 요청 (MPV 공식 권장 방식)
+            if (timelineSync && fps > 0) {
+                var targetPosition = _internalFrame / fps;
+                timelineSync.seekToPosition(targetPosition, true);
             } else {
                 // 여기서 바로 currentFrame을 업데이트하지 않고 신호로 보냄
                 seekRequested(_internalFrame);
@@ -186,41 +187,40 @@ Item {
         return Math.round(safeFrame * scaleFactor - 1);
     }
     
-    // MPV 시크 작업 최적화 - 중복 코드 제거 및 통합 (새로 추가)
+    // MPV 시간 기반 시크 작업 최적화 - MPV 공식 권장 방식
     function performMpvSeek(frame) {
-        if (!mpvObject) return false;
+        if (!mpvObject || fps <= 0) return false;
         
         try {
-            console.log("Performing optimized MPV seek to frame:", frame);
+            console.log("Performing time-based MPV seek to frame:", frame);
             
-            // MPV 명령 오류 방지를 위한 핵심 변경: 직접 속성 설정만 사용
-            
-            // 1. 먼저 안전하게 속성 설정 (MPV 명령보다 더 안정적)
+            // 1. 먼저 안전하게 일시정지 설정
             mpvObject.setProperty("pause", true);
             
-            // 2. 프레임 오프셋 조정 (1-based 고정)
-            // 항상 1-based로 처리 (중요: 0번 프레임이면 자동으로 1로 변환)
-            var adjustedFrame = Math.max(1, frame + 1);
-            if (frame === 0) {
-                console.log("프레임 인덱스 조정: 0 -> 1 (1-based 인덱싱 적용)");
+            // 2. 프레임을 시간으로 변환 (MPV 공식 권장 시간 기반 시크)
+            var targetPosition = frame / fps;
+            
+            // 3. 시간 범위 검증
+            var duration = mpvObject.duration();
+            if (duration > 0) {
+                targetPosition = Math.max(0.0, Math.min(targetPosition, duration - 0.1));
             }
             
-            // 3. 정확한 위치 계산 (조정된 프레임 기준)
-            var adjustedPos = (adjustedFrame - 1) / fps; // 0-based 시간 위치 계산
-            
-            // 4. 명확한 소수점 형식으로 변환 (MPV 명령 오류 방지)
-            // toFixed(6)로 명시적 문자열 형식을 만든 후 다시 Number로 변환
-            var numericPos = Number(adjustedPos.toFixed(6));
-            
-            // 5. MPV 명령 대신 직접 속성 설정만 사용 (더 안정적)
-            console.log("Setting MPV position directly:", numericPos, "(프레임:", adjustedFrame, ")");
-            mpvObject.setProperty("time-pos", numericPos);
+            // 4. TimelineSync를 통한 시간 기반 시크 (우선)
+            if (timelineSync) {
+                console.log("Using TimelineSync for time-based seek:", targetPosition);
+                timelineSync.seekToPosition(targetPosition, true);
+            } else {
+                // 5. 직접 MPV 시간 기반 시크 (fallback)
+                console.log("Direct MPV time-based seek:", targetPosition);
+                mpvObject.seekToPosition(targetPosition);
+            }
             
             // 6. 내부 프레임 업데이트
             _internalFrame = frame;
-            currentFrame = frame; // UI와 내부 값 일치시킴
+            currentFrame = frame;
             
-            // 7. 강제 업데이트 (UI 반응성)
+            // 7. UI 강제 업데이트
             mpvObject.update();
             
             // 8. 프레임 동기화 시그널 발생
@@ -231,7 +231,7 @@ Item {
             
             return true;
         } catch (e) {
-            console.error("MPV seek error:", e);
+            console.error("Time-based MPV seek error:", e);
             return false;
         }
     }
@@ -634,10 +634,15 @@ Item {
                         // 3. 시그널 강화 - 여러 경로로 시그널 발생
                         console.log("Click seek:", dragFrame);
                         
-                        // 4. VideoArea 컴포넌트의 seekToFrame 함수 직접 호출 시도
-                        if (mpvObject && mpvObject.parentItem && 
-                            typeof mpvObject.parentItem.seekToFrame === "function") {
+                        // 4. VideoArea 컴포넌트에 시간 기반 시크 요청
+                        if (mpvObject && mpvObject.parentItem && fps > 0) {
+                            var targetPos = dragFrame / fps;
+                            if (typeof mpvObject.parentItem.seekToPosition === "function") {
+                                mpvObject.parentItem.seekToPosition(targetPos);
+                            } else if (typeof mpvObject.parentItem.seekToFrame === "function") {
+                                // fallback: 기존 함수가 있으면 사용 (내부적으로 시간 기반으로 변환됨)
                             mpvObject.parentItem.seekToFrame(dragFrame);
+                            }
                         }
                         
                         // 5. 중요: 클릭 시크를 위한 강화된 검증 즉시 시작
