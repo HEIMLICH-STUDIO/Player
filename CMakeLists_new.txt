@@ -1,0 +1,139 @@
+cmake_minimum_required(VERSION 3.16)
+
+# 프로젝트 설정
+project(Player-by-HEIMLICH-FFmpeg VERSION 1.0.0)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+# Qt 찾기
+find_package(Qt6 COMPONENTS Core Quick Gui OpenGL QuickControls2 Widgets REQUIRED)
+
+# FFmpeg 라이브러리 설정
+set(FFMPEG_ROOT "${CMAKE_SOURCE_DIR}/external/ffmpeg")
+set(FFMPEG_INCLUDE_DIR "${FFMPEG_ROOT}/include")
+
+# Windows용 FFmpeg 라이브러리 경로
+if(WIN32)
+    set(FFMPEG_LIB_DIR "C:/msys64/mingw64/lib")
+    set(FFMPEG_BIN_DIR "C:/msys64/mingw64/bin")
+    
+    # FFmpeg 라이브러리들
+    set(FFMPEG_LIBRARIES
+        ${FFMPEG_LIB_DIR}/libavformat.dll.a
+        ${FFMPEG_LIB_DIR}/libavcodec.dll.a
+        ${FFMPEG_LIB_DIR}/libavutil.dll.a
+        ${FFMPEG_LIB_DIR}/libswscale.dll.a
+        ${FFMPEG_LIB_DIR}/libswresample.dll.a
+    )
+    
+    # FFmpeg DLL 파일들
+    set(FFMPEG_DLLS
+        ${FFMPEG_BIN_DIR}/avformat-61.dll
+        ${FFMPEG_BIN_DIR}/avcodec-61.dll
+        ${FFMPEG_BIN_DIR}/avutil-59.dll
+        ${FFMPEG_BIN_DIR}/swscale-8.dll
+        ${FFMPEG_BIN_DIR}/swresample-5.dll
+    )
+endif()
+
+# 소스 파일들
+set(SOURCES
+    src/main.cpp
+    src/core/ffmpegobject.cpp
+    src/core/ffmpegobject.h
+    src/core/decoder.cpp
+    src/core/decoder.h
+    src/core/renderer.cpp
+    src/core/renderer.h
+    src/utils/logger.cpp
+    src/utils/logger.h
+    qml.qrc
+)
+
+# Windows 리소스 파일
+if(WIN32)
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/resources.rc"
+        "${CMAKE_BINARY_DIR}/resources.rc"
+        @ONLY
+    )
+    list(APPEND SOURCES "${CMAKE_BINARY_DIR}/resources.rc")
+endif()
+
+# 실행 파일 생성
+if(WIN32)
+    add_executable(${PROJECT_NAME} WIN32 ${SOURCES})
+else()
+    add_executable(${PROJECT_NAME} ${SOURCES})
+endif()
+
+# 컴파일 정의
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    HAVE_FFMPEG
+    QT_QML_DEBUG
+)
+
+# 인클루드 디렉토리
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/core
+    ${CMAKE_SOURCE_DIR}/src/utils
+    ${FFMPEG_INCLUDE_DIR}
+    C:/msys64/mingw64/include
+)
+
+# 라이브러리 링크
+target_link_libraries(${PROJECT_NAME}
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Gui
+    Qt6::OpenGL
+    Qt6::QuickControls2
+    Qt6::Widgets
+    ${FFMPEG_LIBRARIES}
+)
+
+# Windows용 추가 설정
+if(WIN32)
+    # DLL 복사
+    foreach(DLL ${FFMPEG_DLLS})
+        if(EXISTS ${DLL})
+            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${DLL}
+                $<TARGET_FILE_DIR:${PROJECT_NAME}>
+            )
+        endif()
+    endforeach()
+    
+    # 아이콘 설정
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        WIN32_EXECUTABLE TRUE
+    )
+endif()
+
+# 빌드 후 정보 출력
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "==================================="
+    COMMAND ${CMAKE_COMMAND} -E echo "FFmpeg ProRes Player 빌드 완료!"
+    COMMAND ${CMAKE_COMMAND} -E echo "실행 파일: $<TARGET_FILE:${PROJECT_NAME}>"
+    COMMAND ${CMAKE_COMMAND} -E echo "==================================="
+)
+
+# 설치 설정 (선택사항)
+install(TARGETS ${PROJECT_NAME}
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION bin
+)
+
+if(WIN32)
+    # FFmpeg DLL들도 함께 설치
+    install(FILES ${FFMPEG_DLLS}
+        DESTINATION bin
+        OPTIONAL
+    )
+endif() 

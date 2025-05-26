@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 # 프로젝트 버전 정의
 set(PROJECT_VERSION_MAJOR 0)
 set(PROJECT_VERSION_MINOR 0)
-set(PROJECT_VERSION_PATCH 0)
+set(PROJECT_VERSION_PATCH 2)
 set(PROJECT_VERSION_BUILD 1)
 
 # Git 정보 가져오기 (선택사항)
@@ -72,7 +72,69 @@ message(STATUS "Building for platform: ${PLATFORM_NAME}")
 
 find_package(Qt6 COMPONENTS Core Quick Gui OpenGL QuickControls2 Widgets REQUIRED)
 
-# Check if MPV is available for the current platform
+# Check for FFmpeg support (preferred)
+set(FFMPEG_FOUND FALSE)
+
+# Try to find FFmpeg using pkg-config first
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(FFMPEG QUIET libavformat libavcodec libavutil libswscale)
+    if(FFMPEG_FOUND)
+        message(STATUS "Found FFmpeg via pkg-config")
+        message(STATUS "FFmpeg include dirs: ${FFMPEG_INCLUDE_DIRS}")
+        message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
+    endif()
+endif()
+
+# If pkg-config didn't work, try to find FFmpeg manually
+if(NOT FFMPEG_FOUND)
+    # Look for FFmpeg in common locations
+    set(FFMPEG_ROOT_PATHS
+        "${CMAKE_SOURCE_DIR}/external/ffmpeg"
+        "C:/msys64/mingw64"
+        "C:/ffmpeg"
+        "/usr/local"
+        "/usr"
+        "/opt/local"
+    )
+    
+    foreach(FFMPEG_ROOT ${FFMPEG_ROOT_PATHS})
+        if(EXISTS "${FFMPEG_ROOT}/include/libavformat/avformat.h" AND
+           EXISTS "${FFMPEG_ROOT}/include/libavcodec/avcodec.h")
+            set(FFMPEG_FOUND TRUE)
+            set(FFMPEG_INCLUDE_DIRS "${FFMPEG_ROOT}/include")
+            
+            # Find libraries
+            if(WIN32)
+                set(FFMPEG_LIBRARIES
+                    "${FFMPEG_ROOT}/lib/libavformat.dll.a"
+                    "${FFMPEG_ROOT}/lib/libavcodec.dll.a"
+                    "${FFMPEG_ROOT}/lib/libavutil.dll.a"
+                    "${FFMPEG_ROOT}/lib/libswscale.dll.a"
+                )
+                # Find DLLs for runtime
+                set(FFMPEG_DLLS
+                    "${FFMPEG_ROOT}/bin/avformat-61.dll"
+                    "${FFMPEG_ROOT}/bin/avcodec-61.dll"
+                    "${FFMPEG_ROOT}/bin/avutil-59.dll"
+                    "${FFMPEG_ROOT}/bin/swscale-8.dll"
+                )
+            else()
+                set(FFMPEG_LIBRARIES
+                    "${FFMPEG_ROOT}/lib/libavformat.so"
+                    "${FFMPEG_ROOT}/lib/libavcodec.so"
+                    "${FFMPEG_ROOT}/lib/libavutil.so"
+                    "${FFMPEG_ROOT}/lib/libswscale.so"
+                )
+            endif()
+            
+            message(STATUS "Found FFmpeg at: ${FFMPEG_ROOT}")
+            break()
+        endif()
+    endforeach()
+endif()
+
+# Check if MPV is available for the current platform (fallback)
 set(MPV_FOUND FALSE)
 set(MPV_ROOT "${CMAKE_SOURCE_DIR}/external/libs/${PLATFORM_NAME}")
 
@@ -123,16 +185,68 @@ else() # Linux
     endif()
 endif()
 
-if(MPV_FOUND)
-    message(STATUS "Found MPV libraries for ${PLATFORM_NAME}")
+# Determine which backend to use
+if(FFMPEG_FOUND)
+    message(STATUS "Building with FFmpeg support (preferred)")
+    set(USE_FFMPEG TRUE)
+    set(USE_MPV FALSE)
+elseif(MPV_FOUND)
+    message(STATUS "Building with MPV support (fallback)")
     message(STATUS "MPV include directory: ${MPV_INCLUDE_DIR}")
     message(STATUS "MPV library: ${MPV_LIBRARY}")
+    set(USE_FFMPEG FALSE)
+    set(USE_MPV TRUE)
 else()
-    message(WARNING "MPV not found for platform ${PLATFORM_NAME}. Building without MPV support.")
+    message(WARNING "Neither FFmpeg nor MPV found. Building basic version without video backend.")
+    set(USE_FFMPEG FALSE)
+    set(USE_MPV FALSE)
 endif()
 
-# Set project sources based on MPV availability
-if(MPV_FOUND)
+# Set project sources based on available backend
+if(USE_FFMPEG)
+    message(STATUS "Building Player by HEIMLICH® with FFmpeg support")
+    if(WIN32)
+        # 아이콘 파일을 빌드 디렉토리로 복사
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
+            "${CMAKE_BINARY_DIR}/icon_win.ico"
+            COPYONLY
+        )
+        
+        # 추가 아이콘 위치에도 복사
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
+            "${CMAKE_SOURCE_DIR}/icon_win.ico"
+            COPYONLY
+        )
+        
+        # Windows 리소스 파일 템플릿 생성
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/resources.rc"
+            "${CMAKE_BINARY_DIR}/resources.rc"
+            @ONLY
+        )
+        
+        # 실행파일 생성 (리소스 파일 포함)
+        add_executable(${PROJECT_NAME} WIN32
+            src/main.cpp
+            src/core/ffmpegobject.cpp
+            src/core/ffmpegobject.h
+            qml.qrc
+            "${CMAKE_BINARY_DIR}/resources.rc"
+        )
+    else()
+        add_executable(${PROJECT_NAME}
+            src/main.cpp
+            src/core/ffmpegobject.cpp
+            src/core/ffmpegobject.h
+            qml.qrc
+        )
+    endif()
+    
+    # Define HAVE_FFMPEG for conditional compilation
+    add_compile_definitions(HAVE_FFMPEG)
+elseif(USE_MPV)
     message(STATUS "Building Player by HEIMLICH® with MPV support")
     if(WIN32)
         # 아이콘 파일을 빌드 디렉토리로 복사
@@ -218,7 +332,18 @@ else()
 endif()
 
 # Link libraries
-if(MPV_FOUND)
+if(USE_FFMPEG)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${FFMPEG_INCLUDE_DIRS})
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        Qt6::Core
+        Qt6::Quick
+        Qt6::Gui
+        Qt6::OpenGL
+        Qt6::QuickControls2
+        Qt6::Widgets
+        ${FFMPEG_LIBRARIES}
+    )
+elseif(USE_MPV)
     target_include_directories(${PROJECT_NAME} PRIVATE ${MPV_INCLUDE_DIR})
     target_link_libraries(${PROJECT_NAME} PRIVATE
         Qt6::Core
@@ -230,7 +355,20 @@ if(MPV_FOUND)
         ${MPV_LIBRARY}
     )
     
-    # Post-build command to copy DLL (Windows and macOS)
+    # Post-build command to copy FFmpeg DLLs (Windows)
+    if(WIN32 AND FFMPEG_DLLS)
+        foreach(DLL ${FFMPEG_DLLS})
+            if(EXISTS "${DLL}")
+                add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${DLL}"
+                    $<TARGET_FILE_DIR:${PROJECT_NAME}>
+                )
+            endif()
+        endforeach()
+    endif()
+    
+    # Post-build command to copy MPV DLL (Windows and macOS) - fallback
     if(WIN32 AND EXISTS "${MPV_DLL}")
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different

@@ -182,12 +182,12 @@ Window {
                         color: "#121212"
                         visible: histogramCheck.checked
                         
-                        // Histogram MPV instance
+                        // Histogram FFmpeg instance
                         Loader {
                             id: histogramMpvLoader
                             anchors.fill: parent
                             anchors.margins: 10
-                            active: typeof hasMpvSupport !== "undefined" ? hasMpvSupport : false
+                            active: typeof hasFFmpegSupport !== "undefined" ? hasFFmpegSupport : false
                             
                             sourceComponent: Component {
                                 Item {
@@ -197,9 +197,9 @@ Window {
                                         try {
                                             // Create MPV instance
                                             var component = Qt.createQmlObject(
-                                                'import mpv 1.0; MpvObject { anchors.fill: parent }',
+                                                'import ffmpeg 1.0; FFmpegObject { anchors.fill: parent }',
                                                 this,
-                                                "histogram_mpv"
+                                                "histogram_ffmpeg"
                                             );
                                             
                                             if (component) {
@@ -235,12 +235,12 @@ Window {
                         color: "#121212"
                         visible: vectorscopeCheck.checked
                         
-                        // Vectorscope MPV instance
+                        // Vectorscope FFmpeg instance
                         Loader {
                             id: vectorscopeMpvLoader
                             anchors.fill: parent
                             anchors.margins: 10
-                            active: typeof hasMpvSupport !== "undefined" ? hasMpvSupport : false
+                            active: typeof hasFFmpegSupport !== "undefined" ? hasFFmpegSupport : false
                             
                             sourceComponent: Component {
                                 Item {
@@ -250,9 +250,9 @@ Window {
                                         try {
                                             // Create MPV instance
                                             var component = Qt.createQmlObject(
-                                                'import mpv 1.0; MpvObject { anchors.fill: parent }',
+                                                'import ffmpeg 1.0; FFmpegObject { anchors.fill: parent }',
                                                 this,
-                                                "vectorscope_mpv"
+                                                "vectorscope_ffmpeg"
                                             );
                                             
                                             if (component) {
@@ -284,7 +284,7 @@ Window {
     
     // Update scopes function
     function updateScopes() {
-        if (!videoArea || !videoArea.mpvSupported || currentFile === "") {
+        if (!videoArea || !videoArea.ffmpegSupported || currentFile === "") {
             statusText.text = "No video loaded";
             return;
         }

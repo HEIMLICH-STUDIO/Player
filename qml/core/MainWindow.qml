@@ -94,7 +94,7 @@ Window {
     Component.onCompleted: {
         console.log("Main window loaded");
         console.log("Using VideoArea from:", (typeof VideoArea !== "undefined") ? "Available" : "Not available");
-        console.log("MPV support:", typeof hasMpvSupport !== "undefined" ? hasMpvSupport : "Unknown");
+        console.log("FFmpeg support:", typeof hasFFmpegSupport !== "undefined" ? hasFFmpegSupport : "Unknown");
         
         // 명령줄에서 전달받은 초기 비디오 파일이 있으면 자동으로 로드
         if (typeof initialVideoFile !== "undefined" && initialVideoFile !== "" && initialVideoFile !== null) {

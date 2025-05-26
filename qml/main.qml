@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import Utils 1.0 as Utils
 
 // Import local components
-import mpv 1.0
+import ffmpeg 1.0
 import "panels"  // 명시적으로 panels 디렉토리에서 VideoArea 가져오기
 import "widgets" // widgets에서 ControlBar 사용하도록 변경
 import "popups"
@@ -25,11 +25,11 @@ ApplicationWindow {
     Component.onCompleted: {
         console.log("Main window loaded");
         console.log("Using VideoArea from:", (typeof VideoArea !== "undefined") ? "Available" : "Not available");
-        console.log("MPV support:", mpvSupported);
+        console.log("FFmpeg support:", mpvSupported);
     }
     
     // Global properties
-    property bool mpvSupported: hasMpvSupport
+    property bool mpvSupported: hasFFmpegSupport
     property string currentMediaFile: ""
     property bool settingsPanelVisible: true
     property int currentFrame: 0

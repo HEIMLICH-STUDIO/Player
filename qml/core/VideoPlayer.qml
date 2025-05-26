@@ -85,43 +85,43 @@ Item {
     // mpvObject를 캐싱하여 불필요한 변경 감지 방지
     property var _cachedMpvObject: null
     
-    // Function to safely access the mpv object
-    function getMpvObject() {
+    // Function to safely access the ffmpeg object
+    function getFFmpegObject() {
         if (!videoArea) {
             console.error("VideoPlayer: videoArea is null");
             return null;
         }
         
-        if (!videoArea.mpvSupported) {
-            console.error("VideoPlayer: mpvSupported is false");
+        if (!videoArea.ffmpegSupported) {
+            console.error("VideoPlayer: ffmpegSupported is false");
             return null;
         }
         
-        // 직접 mpvPlayer 속성 접근 (VideoArea에서 추가된 새 속성)
-        var player = videoArea.mpvPlayer;
+        // 직접 ffmpegPlayer 속성 접근 (VideoArea에서 추가된 새 속성)
+        var player = videoArea.ffmpegPlayer;
         if (!player) {
-            console.error("VideoPlayer: mpvPlayer is null");
+            console.error("VideoPlayer: ffmpegPlayer is null");
             return null;
         }
         
-        // MPV 객체가 변경되었는지 확인
+        // FFmpeg 객체가 변경되었는지 확인
         if (player !== _cachedMpvObject) {
-            console.log("VideoPlayer: New mpvPlayer object detected");
+            console.log("VideoPlayer: New ffmpegPlayer object detected");
             _cachedMpvObject = player;
             
-            // TimelineSync에 MPV 객체 연결 (최우선)
+            // TimelineSync에 FFmpeg 객체 연결 (최우선)
             Qt.callLater(function() {
                 if (timelineSync && player) {
-                    console.log("VideoPlayer: Connecting MPV to TimelineSync");
-                    timelineSync.connectMpv(player);
+                    console.log("VideoPlayer: Connecting FFmpeg to TimelineSync");
+                    timelineSync.connectFFmpeg(player);
                 }
             });
             
-            // ControlBar에 새로운 MPV 객체 전달 (지연 후)
+            // ControlBar에 새로운 FFmpeg 객체 전달 (지연 후)
             Qt.callLater(function() {
                 if (controlBar) {
-                    console.log("VideoPlayer: Passing new MPV object to ControlBar");
-                    controlBar.mpvObject = player;
+                    console.log("VideoPlayer: Passing new FFmpeg object to ControlBar");
+                    controlBar.ffmpegObject = player;
                     
                     // 메타데이터 새로고침 요청
                     Qt.callLater(function() {
@@ -162,19 +162,19 @@ Item {
 
             root.currentFrame = frame;
             
-            // MPV 현재 위치 확인 (매우 관대한 조건으로 변경)
-            var mpv = getMpvObject();
-            if (mpv) {
+            // FFmpeg 현재 위치 확인 (매우 관대한 조건으로 변경)
+            var ffmpeg = getFFmpegObject();
+            if (ffmpeg) {
                 try {
-                var mpvPos = mpv.getProperty("time-pos");
-                    if (mpvPos !== undefined && mpvPos !== null) {
-                var mpvFrame = Math.round(mpvPos * fps);
+                var ffmpegPos = ffmpeg.getProperty("time-pos");
+                    if (ffmpegPos !== undefined && ffmpegPos !== null) {
+                var ffmpegFrame = Math.round(ffmpegPos * fps);
                 
                         // 극단적인 불일치만 강제 동기화 (15프레임 이상 차이)
-                        if (Math.abs(mpvFrame - frame) > 15) {
-                            console.log("MPV Sync: Extreme mismatch detected - MPV:", mpvFrame, "UI:", frame);
+                        if (Math.abs(ffmpegFrame - frame) > 15) {
+                            console.log("FFmpeg Sync: Extreme mismatch detected - FFmpeg:", ffmpegFrame, "UI:", frame);
                     var pos = frame / fps;
-                    mpv.setProperty("time-pos", pos);
+                    ffmpeg.setProperty("time-pos", pos);
                         }
                     }
                 } catch (e) {
