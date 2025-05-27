@@ -1,18 +1,19 @@
-#ifndef MPVOBJECT_H
-#define MPVOBJECT_H
+#ifndef FFMPEGOBJECT_H
+#define FFMPEGOBJECT_H
 
 #include <QtQuick/QQuickFramebufferObject>
-#include <client.h>
-#include <render_gl.h>
 #include <QTimer>
 #include <QVariant>
 #include <QDateTime>
+#include "core/FFmpegEngine.h"
 
-class MpvRenderer;
+class FFmpegRenderer;
 
-class MpvObject : public QQuickFramebufferObject
+class FFmpegObject : public QQuickFramebufferObject
 {
     Q_OBJECT
+    
+    // MPV와 동일한 모든 프로퍼티 유지
     Q_PROPERTY(QString filename READ filename NOTIFY filenameChanged)
     Q_PROPERTY(bool pause READ isPaused NOTIFY pauseChanged)
     Q_PROPERTY(double position READ position NOTIFY positionChanged)
@@ -39,9 +40,8 @@ class MpvObject : public QQuickFramebufferObject
     Q_PROPERTY(QString customTimecodePattern READ customTimecodePattern WRITE setCustomTimecodePattern NOTIFY customTimecodePatternChanged)
     Q_PROPERTY(int timecodeSource READ timecodeSource WRITE setTimecodeSource NOTIFY timecodeSourceChanged)
 
-    mpv_handle *mpv;
-    mpv_render_context *mpv_context;
-    friend class MpvRenderer;
+    FFmpegEngine *m_engine;
+    friend class FFmpegRenderer;
 
     QString m_filename;
     QString m_mediaTitle;
@@ -54,8 +54,8 @@ class MpvObject : public QQuickFramebufferObject
     bool m_endReached = false;
     bool m_loopEnabled = false;
     int m_frameCount = 0;
-    bool m_oneBasedFrameNumbers = false; // 기본값은 0-기반
-    bool m_keepOpenEnabled = true; // keep-open 기능 활성화
+    bool m_oneBasedFrameNumbers = false;
+    bool m_keepOpenEnabled = true;
     
     // 코덱 정보 변수 추가
     QString m_videoCodec = "";
@@ -64,12 +64,12 @@ class MpvObject : public QQuickFramebufferObject
     
     // 타임코드 관련 변수
     QString m_timecode = "00:00:00:00";
-    int m_timecodeFormat = 0; // 0=SMPTE Non-Drop, 1=SMPTE Drop-Frame, 2=HH:MM:SS.MS, 3=Frames Only
+    int m_timecodeFormat = 0;
     bool m_useEmbeddedTimecode = false;
     QString m_embeddedTimecode = "";
     int m_timecodeOffset = 0;
     QString m_customTimecodePattern = "%H:%M:%S.%f";
-    int m_timecodeSource = 0; // 0=Calculate, 1=Embedded SMPTE, 2=File Metadata, 3=Reel Name
+    int m_timecodeSource = 0;
     
     // 성능 모니터링 관련 변수
     QDateTime m_lastPerformanceCheck;
@@ -81,14 +81,15 @@ class MpvObject : public QQuickFramebufferObject
     // 타이머
     QTimer *m_stateChangeTimer = nullptr;
     QTimer *m_performanceTimer = nullptr;
-    QTimer *m_metadataTimer = nullptr;  // 메타데이터 업데이트 타이머
-    QTimer *m_timecodeTimer = nullptr;  // 타임코드 업데이트 타이머
+    QTimer *m_metadataTimer = nullptr;
+    QTimer *m_timecodeTimer = nullptr;
 
 public:
-    explicit MpvObject(QQuickItem * parent = 0);
-    virtual ~MpvObject();
+    explicit FFmpegObject(QQuickItem * parent = 0);
+    virtual ~FFmpegObject();
     virtual Renderer *createRenderer() const;
 
+    // MPV 호환 접근자
     QString filename() const;
     bool isPaused() const;
     double position() const;
@@ -138,7 +139,7 @@ public slots:
     void command(const QVariant& params);
     void setProperty(const QString& name, const QVariant& value);
     QVariant getProperty(const QString& name);
-    void handleMpvEvents();
+    void handleFFmpegEvents();
     void updatePositionProperty();
     void processStateChange();
     void checkPerformance();
@@ -146,12 +147,12 @@ public slots:
     void handleEndOfVideo();
     void seekToPosition(double pos);
     void updateFrameCount();
-    void updateVideoMetadata();  // 메타데이터 업데이트 함수 추가
+    void updateVideoMetadata();
     void applyVideoFilters(const QStringList& filters);
-    void updateTimecode();      // 타임코드 업데이트 함수
-    void fetchEmbeddedTimecode(); // 내장 타임코드 추출 함수
-    void seekToLastFrame();     // 마지막 프레임으로 정확히 이동
-    void seekToFirstFrame();    // 첫 번째 프레임으로 정확히 이동
+    void updateTimecode();
+    void fetchEmbeddedTimecode();
+    void seekToLastFrame();
+    void seekToFirstFrame();
 
 signals:
     void positionChanged(double position);
@@ -179,8 +180,29 @@ signals:
     void loopChanged(bool enabled);
     void oneBasedFrameNumbersChanged(bool oneBased);
     void keepOpenChanged(bool enabled);
-    void endReached();  // 영상 종료 시 발생하는 시그널
-    void endReachedChanged(bool reached);  // endReached 속성 변경 시그널
+    void endReached();
+    void endReachedChanged(bool reached);
+
+private slots:
+    void onEngineFilenameChanged(const QString& filename);
+    void onEnginePositionChanged(double position);
+    void onEngineDurationChanged(double duration);
+    void onEngineFpsChanged(double fps);
+    void onEngineFrameCountChanged(int count);
+    void onEnginePlayingChanged(bool playing);
+    void onEnginePauseChanged(bool paused);
+    void onEngineVideoCodecChanged(const QString& codec);
+    void onEngineVideoFormatChanged(const QString& format);
+    void onEngineVideoResolutionChanged(const QString& resolution);
+    void onEngineMediaTitleChanged(const QString& title);
+    void onEngineTimecodeChanged(const QString& timecode);
+    void onEngineEndReached();
+    void onEngineError(const QString& message);
+
+private:
+    void connectEngineSignals();
+    void updateTimecodeFromPosition();
+    void calculateTimecode();
 };
 
-#endif // MPVOBJECT_H 
+#endif // FFMPEGOBJECT_H 

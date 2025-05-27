@@ -26,38 +26,38 @@ TimelineSync::TimelineSync(QObject *parent)
 TimelineSync::~TimelineSync()
 {
     // 연결 해제 및 리소스 정리
-    if (m_mpv) {
-        disconnect(m_mpv, nullptr, this, nullptr);
+    if (m_ffmpeg) {
+        disconnect(m_ffmpeg, nullptr, this, nullptr);
     }
 }
 
-// MPV 객체를 타임라인 동기화 클래스에 연결
-void TimelineSync::connectMpv(MpvObject* mpv)
+// FFmpeg 객체를 타임라인 동기화 클래스에 연결
+void TimelineSync::connectFfmpeg(FFmpegObject* ffmpeg)
 {
-    if (!mpv) return;
+    if (!ffmpeg) return;
     
     // 이전 연결 제거
-    if (m_mpv) {
-        disconnect(m_mpv, nullptr, this, nullptr);
+    if (m_ffmpeg) {
+        disconnect(m_ffmpeg, nullptr, this, nullptr);
     }
     
-    m_mpv = mpv;
+    m_ffmpeg = ffmpeg;
     
-    // MPV 이벤트 연결
-    connect(m_mpv, &MpvObject::positionChanged, this, &TimelineSync::onMpvPositionChanged);
-    connect(m_mpv, &MpvObject::durationChanged, this, &TimelineSync::onMpvDurationChanged);
-    connect(m_mpv, &MpvObject::playingChanged, this, &TimelineSync::onMpvPlayingChanged);
-    connect(m_mpv, &MpvObject::pauseChanged, this, &TimelineSync::onMpvPauseChanged);
-    connect(m_mpv, &MpvObject::endReached, this, &TimelineSync::onMpvEndReached);
-    connect(m_mpv, &MpvObject::frameCountChanged, this, &TimelineSync::onMpvFrameCountChanged);
+    // FFmpeg 이벤트 연결
+    connect(m_ffmpeg, &FFmpegObject::positionChanged, this, &TimelineSync::onFfmpegPositionChanged);
+    connect(m_ffmpeg, &FFmpegObject::durationChanged, this, &TimelineSync::onFfmpegDurationChanged);
+    connect(m_ffmpeg, &FFmpegObject::playingChanged, this, &TimelineSync::onFfmpegPlayingChanged);
+    connect(m_ffmpeg, &FFmpegObject::pauseChanged, this, &TimelineSync::onFfmpegPauseChanged);
+    connect(m_ffmpeg, &FFmpegObject::endReached, this, &TimelineSync::onFfmpegEndReached);
+    connect(m_ffmpeg, &FFmpegObject::frameCountChanged, this, &TimelineSync::onFfmpegFrameCountChanged);
     
     // 초기 상태 업데이트
-    m_position = m_mpv->position();
-    m_duration = m_mpv->duration();
-    m_isPlaying = !m_mpv->isPaused();
+    m_position = m_ffmpeg->position();
+    m_duration = m_ffmpeg->duration();
+    m_isPlaying = !m_ffmpeg->isPaused();
     
     // 프레임 레이트 가져오기 시도
-    QVariant fpsVar = m_mpv->getProperty("estimated-vf-fps");
+    QVariant fpsVar = m_ffmpeg->getProperty("fps");
     if (fpsVar.isValid() && fpsVar.toDouble() > 0) {
         m_fps = fpsVar.toDouble();
         emit fpsChanged(m_fps);
@@ -80,7 +80,7 @@ void TimelineSync::connectMpv(MpvObject* mpv)
 // 특정 프레임으로 시크
 void TimelineSync::seekToFrame(int frame, bool exact)
 {
-    if (!m_mpv || m_duration <= 0) return;
+    if (!m_ffmpeg || m_duration <= 0) return;
     
     // 프레임 범위 검증
     frame = qBound(0, frame, m_totalFrames - 1);
@@ -91,7 +91,7 @@ void TimelineSync::seekToFrame(int frame, bool exact)
     // 재생 중이면 일시 정지
     bool wasPlaying = m_isPlaying;
     if (wasPlaying) {
-        m_mpv->pause();
+        m_ffmpeg->pause();
     }
     
     // 시크 진행 중 플래그 설정
@@ -101,14 +101,14 @@ void TimelineSync::seekToFrame(int frame, bool exact)
     m_currentFrame = frame;
     emit currentFrameChanged(m_currentFrame);
     
-    // MPV 명령 실행
+    // FFmpeg 명령 실행
     if (exact) {
         // 정확한 프레임 위치 지정
-        m_mpv->command(QVariantList() << "seek" << targetPos << "absolute" << "exact");
-        m_mpv->setProperty("time-pos", targetPos);
+        m_ffmpeg->seekToPosition(targetPos);
+        m_ffmpeg->setProperty("position", targetPos);
     } else {
         // 빠른 키프레임 시크
-        m_mpv->command(QVariantList() << "seek" << targetPos << "absolute" << "keyframes");
+        m_ffmpeg->seekToPosition(targetPos);
     }
     
     // 위치 정보 업데이트
@@ -125,7 +125,7 @@ void TimelineSync::seekToFrame(int frame, bool exact)
 // 특정 시간 위치로 시크
 void TimelineSync::seekToPosition(double position, bool exact)
 {
-    if (!m_mpv || m_duration <= 0) return;
+    if (!m_ffmpeg || m_duration <= 0) return;
     
     // 위치 범위 검증
     position = qBound(0.0, position, m_duration);
@@ -166,16 +166,16 @@ void TimelineSync::endDragging()
 // 정보 강제 업데이트
 void TimelineSync::forceUpdate()
 {
-    if (!m_mpv) return;
+    if (!m_ffmpeg) return;
     
     QMutexLocker locker(&m_syncMutex);
     
-    // MPV에서 최신 정보 가져오기
-    m_position = m_mpv->position();
-    m_duration = m_mpv->duration();
+    // FFmpeg에서 최신 정보 가져오기
+    m_position = m_ffmpeg->position();
+    m_duration = m_ffmpeg->duration();
     
     // FPS 업데이트
-    QVariant fpsVar = m_mpv->getProperty("estimated-vf-fps");
+    QVariant fpsVar = m_ffmpeg->getProperty("fps");
     if (fpsVar.isValid() && fpsVar.toDouble() > 0) {
         m_fps = fpsVar.toDouble();
         emit fpsChanged(m_fps);
@@ -205,7 +205,7 @@ void TimelineSync::setIsDragging(bool dragging)
 }
 
 // MPV 위치 변경 처리
-void TimelineSync::onMpvPositionChanged(double position)
+void TimelineSync::onFfmpegPositionChanged(double position)
 {
     QMutexLocker locker(&m_syncMutex);
     
@@ -223,7 +223,7 @@ void TimelineSync::onMpvPositionChanged(double position)
 }
 
 // MPV 영상 길이 변경 처리
-void TimelineSync::onMpvDurationChanged(double duration)
+void TimelineSync::onFfmpegDurationChanged(double duration)
 {
     QMutexLocker locker(&m_syncMutex);
     
@@ -235,7 +235,7 @@ void TimelineSync::onMpvDurationChanged(double duration)
 }
 
 // MPV 재생 상태 변경 처리
-void TimelineSync::onMpvPlayingChanged(bool playing)
+void TimelineSync::onFfmpegPlayingChanged(bool playing)
 {
     QMutexLocker locker(&m_syncMutex);
     
@@ -246,7 +246,7 @@ void TimelineSync::onMpvPlayingChanged(bool playing)
 }
 
 // MPV 일시정지 상태 변경 처리
-void TimelineSync::onMpvPauseChanged(bool paused)
+void TimelineSync::onFfmpegPauseChanged(bool paused)
 {
     QMutexLocker locker(&m_syncMutex);
     
@@ -260,13 +260,13 @@ void TimelineSync::onMpvPauseChanged(bool paused)
 // 동기화 타이머 핸들러 - 재생 중 실시간 동기화
 void TimelineSync::handleSyncTimer()
 {
-    if (!m_mpv || m_isDragging || m_seekInProgress) return;
+    if (!m_ffmpeg || m_isDragging || m_seekInProgress) return;
     
     QMutexLocker locker(&m_syncMutex);
     
     try {
         // 현재 위치 가져오기
-        QVariant posVar = m_mpv->getProperty("time-pos");
+        QVariant posVar = m_ffmpeg->getProperty("time-pos");
         if (!posVar.isValid()) return;
         
         double newPos = posVar.toDouble();
@@ -286,7 +286,7 @@ void TimelineSync::handleSyncTimer()
         }
         
         // 재생 상태 확인
-        QVariant pauseVar = m_mpv->getProperty("pause");
+        QVariant pauseVar = m_ffmpeg->getProperty("pause");
         if (pauseVar.isValid()) {
             bool isPaused = pauseVar.toBool();
             bool newPlayingState = !isPaused;
@@ -299,7 +299,7 @@ void TimelineSync::handleSyncTimer()
         
         // 정기적으로 총 프레임 수 확인 (동영상이 로드된 경우)
         static int frameCountCheck = 0;
-        if (++frameCountCheck % 60 == 0 && m_mpv->duration() > 0) {
+        if (++frameCountCheck % 60 == 0 && m_ffmpeg->duration() > 0) {
             calculateTotalFrames();
             frameCountCheck = 0;
         }
@@ -311,13 +311,13 @@ void TimelineSync::handleSyncTimer()
 // 검증 타이머 핸들러 - 시크 후 위치 검증
 void TimelineSync::handleVerificationTimer()
 {
-    if (!m_mpv) return;
+    if (!m_ffmpeg) return;
     
     QMutexLocker locker(&m_syncMutex);
     
     try {
         // 정확한 현재 위치 가져오기
-        QVariant posVar = m_mpv->getProperty("time-pos");
+        QVariant posVar = m_ffmpeg->getProperty("time-pos");
         if (!posVar.isValid()) return;
         
         double verifiedPos = posVar.toDouble();
@@ -338,10 +338,10 @@ void TimelineSync::handleVerificationTimer()
             }
             
             // 위치가 크게 다른 경우, 직접 다시 시크
-            if (m_isDragging && m_mpv->isPaused()) {
+            if (m_isDragging && m_ffmpeg->isPaused()) {
                 // 드래그 중이면 MPV 위치를 정확하게 동기화
                 double targetPos = calculatePositionFromFrame(m_currentFrame);
-                m_mpv->seekToPosition(targetPos);
+                m_ffmpeg->seekToPosition(targetPos);
             }
         }
         
@@ -361,8 +361,8 @@ void TimelineSync::completeSeek()
     QMutexLocker locker(&m_syncMutex);
     
     // 최종 위치 확인
-    if (m_mpv) {
-        QVariant posVar = m_mpv->getProperty("time-pos");
+    if (m_ffmpeg) {
+        QVariant posVar = m_ffmpeg->getProperty("time-pos");
         if (posVar.isValid()) {
             double finalPos = posVar.toDouble();
             m_position = finalPos;
@@ -403,18 +403,18 @@ void TimelineSync::updateFrameInfo()
 // 총 프레임 수 계산 - MPV 네이티브 값 우선 사용
 void TimelineSync::calculateTotalFrames()
 {
-    if (!m_mpv || m_duration <= 0 || m_fps <= 0) return;
+    if (!m_ffmpeg || m_duration <= 0 || m_fps <= 0) return;
     
     int frames = 0;
     
     // 1. MPV의 실제 프레임 카운트 사용 (최우선)
-    QVariant frameCountVar = m_mpv->getProperty("estimated-frame-count");
+    QVariant frameCountVar = m_ffmpeg->getProperty("estimated-frame-count");
     if (frameCountVar.isValid() && frameCountVar.toInt() > 0) {
         frames = frameCountVar.toInt();
         qDebug() << "TimelineSync: Using MPV estimated-frame-count:" << frames;
     } else {
         // 2. MPV 객체의 frameCount() 메서드 사용
-        frames = m_mpv->frameCount();
+        frames = m_ffmpeg->frameCount();
         if (frames > 0) {
             qDebug() << "TimelineSync: Using MPV frameCount():" << frames;
         } else {
@@ -508,7 +508,7 @@ int TimelineSync::positionToFrame(double position) const
 }
 
 // MPV EOF 이벤트 핸들러
-void TimelineSync::onMpvEndReached()
+void TimelineSync::onFfmpegEndReached()
 {
     QMutexLocker locker(&m_syncMutex);
     
@@ -536,7 +536,7 @@ void TimelineSync::onMpvEndReached()
 }
 
 // MPV 프레임 카운트 변경 핸들러
-void TimelineSync::onMpvFrameCountChanged(int frameCount)
+void TimelineSync::onFfmpegFrameCountChanged(int frameCount)
 {
     QMutexLocker locker(&m_syncMutex);
     

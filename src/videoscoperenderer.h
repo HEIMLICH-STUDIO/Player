@@ -1,7 +1,27 @@
+#ifndef VIDEOSCOPERENDERER_H
+#define VIDEOSCOPERENDERER_H
+
+#include <QQuickFramebufferObject>
+#include <QQuickItem>
+#include <QMutex>
+#include <QTimerEvent>
+#include <QDateTime>
+#include <QVariant>
+#include <QDebug>
+#include <cmath>
+#include "FFmpegObject.h"
+
+enum class ScopeType {
+    Waveform = 0,
+    Vectorscope = 1,
+    Histogram = 2,
+    RGB_Parade = 3
+};
+
 class VideoScopeItem : public QQuickFramebufferObject
 {
     Q_OBJECT
-    Q_PROPERTY(QVariant mpvObject READ mpvObject WRITE setMpvObject NOTIFY mpvObjectChanged)
+    Q_PROPERTY(QVariant ffmpegObject READ ffmpegObject WRITE setFfmpegObject NOTIFY ffmpegObjectChanged)
     Q_PROPERTY(int scopeType READ scopeType WRITE setScopeType NOTIFY scopeTypeChanged)
     Q_PROPERTY(bool active READ isActive WRITE setActive NOTIFY activeChanged)
     Q_PROPERTY(int intensity READ intensity WRITE setIntensity NOTIFY intensityChanged)
@@ -14,8 +34,8 @@ public:
     
     QQuickFramebufferObject::Renderer* createRenderer() const override;
     
-    QVariant mpvObject() const { return m_mpvObject; }
-    void setMpvObject(const QVariant& obj);
+    QVariant ffmpegObject() const { return m_ffmpegObject; }
+    void setFfmpegObject(const QVariant& obj);
     
     int scopeType() const { return static_cast<int>(m_scopeType); }
     void setScopeType(int type);
@@ -32,15 +52,15 @@ public:
     int mode() const { return m_mode; }
     void setMode(int mode);
     
-    mpv_handle* getMpvHandle() const;
+    // FFmpeg 핸들 관련 메서드는 제거됨
     
 public slots:
     void updateFrameData();
     void handleFrameSwap();
-    void handleMpvEvents();
+    void handleFfmpegEvents();
     
 signals:
-    void mpvObjectChanged();
+    void ffmpegObjectChanged();
     void scopeTypeChanged();
     void activeChanged();
     void intensityChanged();
@@ -54,8 +74,8 @@ private:
     bool extractCurrentFrame();
     void HSVtoRGB(float h, float s, float v, float &r, float &g, float &b);
     
-    QVariant m_mpvObject;
-    MpvObject* m_mpv;
+    QVariant m_ffmpegObject;
+    FFmpegObject* m_ffmpeg;
     ScopeType m_scopeType;
     bool m_active;
     int m_intensity;
@@ -69,4 +89,19 @@ private:
     int m_dataHeight;
     
     friend class VideoScopeRenderer;
-}; 
+};
+
+class VideoScopeRenderer : public QQuickFramebufferObject::Renderer
+{
+public:
+    VideoScopeRenderer();
+    ~VideoScopeRenderer();
+    
+    void render() override;
+    QOpenGLFramebufferObject* createFramebufferObject(const QSize& size) override;
+    
+private:
+    VideoScopeItem* m_item;
+};
+
+#endif // VIDEOSCOPERENDERER_H 

@@ -3,11 +3,11 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 
-// Conditional import - check MPV and TimelineSync support
+// Conditional import - check FFmpeg and TimelineSync support
 // Requires hasMpvSupport context property to be set from C++ first
 import "../utils"
 
-// Area containing the MPV video player
+// Area containing the FFmpeg video player
 Item {
     id: root
     
@@ -18,9 +18,9 @@ Item {
     property real fps: 24.0
     property bool isPlaying: false
     
-    // 중요: mpvLoader와 mpvPlayer를 직접 노출
-    property alias mpvLoader: mpvLoader
-    property var mpvPlayer: mpvLoader.item ? mpvLoader.item.mpvPlayer : null
+    // 중요: ffmpegLoader와 ffmpegPlayer를 직접 노출
+    property alias ffmpegLoader: ffmpegLoader
+    property var ffmpegPlayer: ffmpegLoader.item ? ffmpegLoader.item.ffmpegPlayer : null
     
     // Hover toolbar properties
     property bool showToolbar: false
@@ -46,8 +46,8 @@ Item {
     property string audioSampleRate: ""
     property string creationDate: ""
     
-    // MPV support flag (set from C++ rootContext)
-    property bool mpvSupported: typeof hasMpvSupport !== "undefined" ? hasMpvSupport : false
+    // FFmpeg support flag (set from C++ rootContext)
+    property bool ffmpegSupported: typeof hasMpvSupport !== "undefined" ? hasMpvSupport : true
     
     // 메타데이터가 이미 로드되었는지 추적하는 플래그
     property bool metadataLoaded: false
@@ -55,21 +55,21 @@ Item {
     // 시크/드래그 중 메타데이터 업데이트 방지 플래그
     property bool metadataUpdateBlocked: false
     
-    // MPV 객체 초기화 시 이벤트 연결
+    // FFmpeg 객체 초기화 시 이벤트 연결
     Component.onCompleted: {
-        console.log("VideoArea initialized, waiting for MPV connection");
+        console.log("VideoArea initialized, waiting for FFmpeg connection");
     }
     
-    // MPV 플레이어 변경 감지 및 이벤트 연결
-    onMpvPlayerChanged: {
-        if (mpvPlayer) {
-            console.log("VideoArea: mpvPlayer changed, attempting to connect events");
+    // FFmpeg 플레이어 변경 감지 및 이벤트 연결
+    onFfmpegPlayerChanged: {
+        if (ffmpegPlayer) {
+            console.log("VideoArea: ffmpegPlayer changed, attempting to connect events");
             
             // fileLoaded 시그널 직접 연결
             try {
-                if (typeof mpvPlayer.fileLoaded === "function" ||
-                    mpvPlayer.hasOwnProperty('fileLoaded')) {
-                    mpvPlayer.fileLoaded.connect(function() {
+                if (typeof ffmpegPlayer.fileLoaded === "function" ||
+                    ffmpegPlayer.hasOwnProperty('fileLoaded')) {
+                    ffmpegPlayer.fileLoaded.connect(function() {
                         console.log("VideoArea: File load completed event received");
                         metadataLoaded = false;
                         
@@ -88,12 +88,12 @@ Item {
                 }
                 
                 // 추가적인 이벤트 연결
-                mpvPlayer.frameCountChanged.connect(function(frames) {
+                ffmpegPlayer.frameCountChanged.connect(function(frames) {
                     root.frames = frames;
                     root.onTotalFramesChangedEvent(frames);
                 });
                 
-                mpvPlayer.pauseChanged.connect(function(paused) {
+                ffmpegPlayer.pauseChanged.connect(function(paused) {
                     console.log("VideoArea: Pause changed:", paused);
                     root.isPlaying = !paused;
                     root.onIsPlayingChangedEvent(!paused);
@@ -107,13 +107,13 @@ Item {
                     }
                 });
                 
-                mpvPlayer.playingChanged.connect(function(playing) {
+                ffmpegPlayer.playingChanged.connect(function(playing) {
                     console.log("VideoArea: Playing changed:", playing);
                     root.isPlaying = playing;
                     root.onIsPlayingChangedEvent(playing);
                 });
                 
-                mpvPlayer.filenameChanged.connect(function(filename) {
+                ffmpegPlayer.filenameChanged.connect(function(filename) {
                     console.log("VideoArea: Filename change detected -", filename);
                     
                     // 이전 파일과 다른 경우에만 처리
@@ -143,11 +143,11 @@ Item {
     
     // 영상 끝 감지 핸들러
     Connections {
-        target: mpvPlayer
+        target: ffmpegPlayer
         function onPositionChanged(position) {
             // 영상 끝 근처 감지 로직
-            if (mpvPlayer && position > 0) {
-                var duration = mpvPlayer.getProperty("duration");
+            if (ffmpegPlayer && position > 0) {
+                var duration = ffmpegPlayer.getProperty("duration");
                 if (duration && duration > 0) {
                     // 마지막 1초 이내에서 영상 끝 플래그 설정
                     if (position > duration - 1.0 && !isNearEndOfFile) {
@@ -286,12 +286,12 @@ Item {
         }
     }
     
-    // Placeholder when MPV support is unavailable
+    // Placeholder when FFmpeg support is unavailable
     Rectangle {
         id: placeholderRect
         anchors.fill: parent
         color: ThemeManager.backgroundColor
-        visible: !mpvSupported
+        visible: !ffmpegSupported
         
         Column {
             anchors.centerIn: parent
@@ -299,7 +299,7 @@ Item {
             
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "MPV support not available"
+                text: "FFmpeg Video Engine Ready"
                 color: ThemeManager.textColor
                 font.pixelSize: ThemeManager.largeFontSize
                 font.family: ThemeManager.defaultFont
@@ -307,7 +307,7 @@ Item {
             
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Add HAVE_MPV definition during build"
+                text: "Professional Video Playback Engine"
                 color: ThemeManager.secondaryTextColor
                 font.pixelSize: ThemeManager.normalFontSize
                 font.family: ThemeManager.defaultFont
@@ -315,8 +315,8 @@ Item {
             
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Open File (Placeholder)"
-                onClicked: showMessage("MPV support required to play videos")
+                text: "Select Video File"
+                onClicked: openFile()
             }
         }
     }
@@ -325,58 +325,58 @@ Item {
     FileDialog {
         id: fileDialog
         title: "Open Video File"
-        nameFilters: ["Video files (*.mp4 *.mkv *.avi *.mov *.wmv *.flv)"]
+        nameFilters: ["Video files (*.mp4 *.mkv *.avi *.mov *.wmv *.flv *.webm *.m4v *.ts *.mts *.m2ts)"]
         onAccepted: {
-            if (mpvSupported) {
+            if (ffmpegSupported) {
                 loadFile(selectedFile)
             } else {
-                showMessage("Cannot play video: MPV support not available")
+                showMessage("Cannot play video: FFmpeg support not available")
             }
         }
     }
     
-    // MPV component loaded dynamically when supported
+    // FFmpeg component loaded dynamically when supported
     Loader {
-        id: mpvLoader
+        id: ffmpegLoader
         anchors.fill: parent
-        active: mpvSupported
-        sourceComponent: mpvSupported ? mpvComponent : null
+        active: ffmpegSupported
+        sourceComponent: ffmpegSupported ? ffmpegComponent : null
     }
     
-    // MPV component definition - conditionally loaded
+    // FFmpeg component definition - conditionally loaded
     Component {
-        id: mpvComponent
+        id: ffmpegComponent
         
         Item {
-            // MPV and TimelineSync are only used when importable
-            property var mpvPlayer: null
+            // FFmpeg and TimelineSync are only used when importable
+            property var ffmpegPlayer: null
             property var timelineSync: null
             
             Component.onCompleted: {
                 // Attempt to create components dynamically
                 try {
-                    // Try to create MPV component dynamically
+                    // Try to create FFmpeg component dynamically
                     var component = Qt.createQmlObject(
                         'import mpv 1.0; MpvObject { anchors.fill: parent }',
                         this,
-                        "dynamically_created_mpv"
+                        "dynamically_created_ffmpeg"
                     );
                     
                     if (component) {
-                        mpvPlayer = component;
-                        console.log("MPV component created successfully");
+                        ffmpegPlayer = component;
+                        console.log("FFmpeg component created successfully");
                         
                         // 진행 표시줄(OSD) 비활성화
-                        mpvPlayer.setProperty("osd-level", 0);        // OSD 레벨 완전 비활성화
-                        mpvPlayer.setProperty("osd-bar", "no");       // 타임라인 바 비활성화
-                        mpvPlayer.setProperty("osd-on-seek", "no");   // 시크 시 OSD 표시 안함
+                        ffmpegPlayer.setProperty("osd-level", 0);        // OSD 레벨 완전 비활성화
+                        ffmpegPlayer.setProperty("osd-bar", "no");       // 타임라인 바 비활성화
+                        ffmpegPlayer.setProperty("osd-on-seek", "no");   // 시크 시 OSD 표시 안함
                         
                         // Connect events
-                        connectMpvEvents();
+                        connectFfmpegEvents();
                         
                         // Setup file loaded callback handler
-                        if (mpvPlayer) {
-                            mpvPlayer.fileLoaded.connect(function() {
+                        if (ffmpegPlayer) {
+                            ffmpegPlayer.fileLoaded.connect(function() {
                                 console.log("File loaded event triggered");
                                 // Wait a moment to ensure all properties are available
                                 Qt.callLater(function() {
@@ -403,33 +403,33 @@ Item {
                 }
             }
             
-            // Function to connect MPV events
-            function connectMpvEvents() {
-                if (!mpvPlayer) return;
+            // Function to connect FFmpeg events
+            function connectFfmpegEvents() {
+                if (!ffmpegPlayer) return;
                 
-                mpvPlayer.positionChanged.connect(function(position) {
+                ffmpegPlayer.positionChanged.connect(function(position) {
                     // Update current frame
                     if (position >= 0 && root.fps > 0) {
                         var frame = Math.round(position * root.fps);
                         
                         // 프레임 범위 검증 - 타임라인과 동기화 문제 방지
                         if (root.frames > 0 && frame >= root.frames) {
-                            console.warn("MPV Sync: Frame number out of range:", frame, "max:", root.frames-1);
+                            console.warn("FFmpeg Sync: Frame number out of range:", frame, "max:", root.frames-1);
                             frame = root.frames - 1;
                         }
                         
-                        // console.log("MPV Sync: Frame change detected from video area:", frame);
+                        // console.log("FFmpeg Sync: Frame change detected from video area:", frame);
                         root.frame = frame;
                         root.onFrameChangedEvent(frame);
                     }
                 });
                 
-                mpvPlayer.durationChanged.connect(function(duration) {
+                ffmpegPlayer.durationChanged.connect(function(duration) {
                     // Update total frame count
                     if (duration > 0 && root.fps > 0) {
                         // 실제 프레임 수 계산 (171개 프레임)
                         var totalFrames = Math.ceil(duration * root.fps) - 1;
-                        console.log("MPV Sync: Duration changed, calculating frames:", 
+                        console.log("FFmpeg Sync: Duration changed, calculating frames:", 
                                    "duration =", duration, 
                                    "fps =", root.fps, 
                                    "calculated frames =", totalFrames);
@@ -438,7 +438,7 @@ Item {
                     }
                 });
                 
-                mpvPlayer.filenameChanged.connect(function(filename) {
+                ffmpegPlayer.filenameChanged.connect(function(filename) {
                     console.log("VideoArea: Filename change detected -", filename);
                     
                     // 이전 파일과 다른 경우에만 처리
@@ -456,8 +456,8 @@ Item {
                 });
                 
                 // Connect to file-loaded event if available
-                if (mpvPlayer.hasOwnProperty('fileLoaded')) {
-                    mpvPlayer.fileLoaded.connect(function() {
+                if (ffmpegPlayer.hasOwnProperty('fileLoaded')) {
+                    ffmpegPlayer.fileLoaded.connect(function() {
                         console.log("File fully loaded, fetching metadata");
                         metadataLoaded = false; // 확실히 초기화
                         
@@ -478,14 +478,14 @@ Item {
                     });
                 }
                 
-                mpvPlayer.fpsChanged.connect(function(fps) {
+                ffmpegPlayer.fpsChanged.connect(function(fps) {
                     if (fps > 0) {
                         root.fps = fps;
                         root.onFpsChangedEvent(fps);
                         
                         // When FPS changes, update total frame count as well
-                        if (mpvPlayer.duration > 0) {
-                            var totalFrames = Math.ceil(mpvPlayer.duration * root.fps) - 1;
+                        if (ffmpegPlayer.duration > 0) {
+                            var totalFrames = Math.ceil(ffmpegPlayer.duration * root.fps) - 1;
                             root.frames = totalFrames;
                             root.onTotalFramesChangedEvent(totalFrames);
                         }
@@ -494,8 +494,8 @@ Item {
                 
 
                 
-                if (mpvPlayer.hasOwnProperty('pauseChanged')) {
-                    mpvPlayer.pauseChanged.connect(function(paused) {
+                if (ffmpegPlayer.hasOwnProperty('pauseChanged')) {
+                    ffmpegPlayer.pauseChanged.connect(function(paused) {
                         root.isPlaying = !paused;
                         root.onIsPlayingChangedEvent(!paused);
                     });
@@ -512,29 +512,29 @@ Item {
     
     // Open file dialog
     function openFile() {
-        if (mpvSupported) {
+        if (ffmpegSupported) {
             fileDialog.open()
         } else {
-            showMessage("MPV support not available")
+            showMessage("FFmpeg support not available")
         }
     }
     
     // Load file
     function loadFile(path) {
-        if (!mpvSupported) {
-            showMessage("Cannot load file: MPV support not available");
+        if (!ffmpegSupported) {
+            showMessage("Cannot load file: FFmpeg support not available");
             return;
         }
         
         try {
-            if (mpvPlayer) {
-                mpvPlayer.command(["loadfile", path]);
+            if (ffmpegPlayer) {
+                ffmpegPlayer.command(["loadfile", path]);
                 showMessage("Loading: " + path);
                 
                 // Set up a timer to fetch metadata after loading
                 metadataFetchTimer.start();
             } else {
-                showMessage("MPV player not initialized");
+                showMessage("FFmpeg player not initialized");
             }
         } catch (e) {
             console.error("Failed to load file:", e);
@@ -544,11 +544,11 @@ Item {
     
     // 재생/일시정지 토글
     function playPause() {
-        if (mpvPlayer) {
+        if (ffmpegPlayer) {
             try {
                 // 현재 위치가 끝에 가까운지 확인
-                var duration = mpvPlayer.getProperty("duration");
-                var position = mpvPlayer.getProperty("time-pos");
+                var duration = ffmpegPlayer.getProperty("duration");
+                var position = ffmpegPlayer.getProperty("time-pos");
                 var isNearEnd = false;
                 
                 // 비디오 끝 근처인지 확인 (끝에서 0.5초 이내)
@@ -557,7 +557,7 @@ Item {
                 }
                 
                 // EOF에 도달했거나 끝에 매우 가까우면 처음으로 돌아가기
-                if (isNearEnd || isAtEndOfFile || (mpvPlayer.hasOwnProperty('endReached') && mpvPlayer.endReached)) {
+                if (isNearEnd || isAtEndOfFile || (ffmpegPlayer.hasOwnProperty('endReached') && ffmpegPlayer.endReached)) {
                     console.log("End of video detected - restarting from beginning");
                     
                     // EOF 플래그 리셋
@@ -565,8 +565,8 @@ Item {
                     isAtEndOfFile = false;
                     
                     // 비디오 시작 부분으로 시크
-                    mpvPlayer.setProperty("pause", true);
-                    mpvPlayer.setProperty("time-pos", 0.0);
+                    ffmpegPlayer.setProperty("pause", true);
+                    ffmpegPlayer.setProperty("time-pos", 0.0);
                     
                     // 내부 상태 업데이트
                     root.frame = 0;
@@ -574,14 +574,14 @@ Item {
                     
                     // 약간의 지연 후 재생 시작 (시크 완료 보장)
                     Qt.callLater(function() {
-                        mpvPlayer.setProperty("pause", false);
+                        ffmpegPlayer.setProperty("pause", false);
                         isPlaying = true;
                         onIsPlayingChangedEvent(true);
                     });
                 } else {
                     // 일반적인 재생/일시정지 전환
-                    mpvPlayer.playPause();
-                    isPlaying = !mpvPlayer.pause;
+                    ffmpegPlayer.playPause();
+                    isPlaying = !ffmpegPlayer.pause;
                     onIsPlayingChangedEvent(isPlaying);
                 }
             } catch (e) {
@@ -597,24 +597,24 @@ Item {
     function stepForward(frames) {
         if (!frames || frames < 1) frames = 1; // 기본값 설정
         
-        if (mpvPlayer) {
+        if (ffmpegPlayer) {
             try {
                 // 1. 먼저 일시정지 상태로 변경 (EOF 안전 처리)
                 try {
-                if (!mpvPlayer.pause) {
-                        mpvPlayer.setProperty("pause", true);
+                if (!ffmpegPlayer.pause) {
+                        ffmpegPlayer.setProperty("pause", true);
                     }
                 } catch (pauseError) {
                     console.warn("Cannot set pause property directly, trying command:", pauseError);
                     try {
-                        mpvPlayer.command(["set", "pause", "yes"]);
+                        ffmpegPlayer.command(["set", "pause", "yes"]);
                     } catch (cmdError) {
                         console.error("Both pause methods failed:", cmdError);
                     }
                 }
                 
                 // 2. 현재 위치 확인
-                var currentPos = mpvPlayer.getProperty("time-pos");
+                var currentPos = ffmpegPlayer.getProperty("time-pos");
                 // QML에서 숫자인지 확인
                 if (currentPos === undefined || currentPos === null || isNaN(currentPos)) {
                     showMessage("Cannot determine current position");
@@ -622,7 +622,7 @@ Item {
                 }
                 
                 // 3. 총 프레임 수 확인
-                var duration = mpvPlayer.getProperty("duration");
+                var duration = ffmpegPlayer.getProperty("duration");
                 if (duration === undefined || duration === null || isNaN(duration)) {
                     showMessage("Cannot determine video duration");
                     return;
@@ -640,10 +640,10 @@ Item {
                 
                 // 7. 시크 명령 실행
                 console.log("Seeking forward from frame " + currentFrame + " to " + targetFrame);
-                mpvPlayer.command(["seek", targetPos.toString(), "absolute", "exact"]);
+                ffmpegPlayer.command(["seek", targetPos.toString(), "absolute", "exact"]);
                 
                 // 8. 현재 프레임 업데이트
-                mpvPlayer.setProperty("pause", true); // 일시정지 상태 유지
+                ffmpegPlayer.setProperty("pause", true); // 일시정지 상태 유지
                 root.frame = targetFrame;
                 root.onFrameChangedEvent(targetFrame);
             } catch (e) {
@@ -659,24 +659,24 @@ Item {
     function stepBackward(frames) {
         if (!frames || frames < 1) frames = 1; // 기본값 설정
         
-        if (mpvPlayer) {
+        if (ffmpegPlayer) {
             try {
                 // 1. 먼저 일시정지 상태로 변경 (EOF 안전 처리)
                 try {
-                if (!mpvPlayer.pause) {
-                        mpvPlayer.setProperty("pause", true);
+                if (!ffmpegPlayer.pause) {
+                        ffmpegPlayer.setProperty("pause", true);
                     }
                 } catch (pauseError) {
                     console.warn("Cannot set pause property directly, trying command:", pauseError);
                     try {
-                        mpvPlayer.command(["set", "pause", "yes"]);
+                        ffmpegPlayer.command(["set", "pause", "yes"]);
                     } catch (cmdError) {
                         console.error("Both pause methods failed:", cmdError);
                     }
                 }
                 
                 // 2. 현재 위치 확인
-                var currentPos = mpvPlayer.getProperty("time-pos");
+                var currentPos = ffmpegPlayer.getProperty("time-pos");
                 // QML에서 숫자인지 확인
                 if (currentPos === undefined || currentPos === null || isNaN(currentPos)) {
                     showMessage("Cannot determine current position");
@@ -694,10 +694,10 @@ Item {
                 
                 // 6. 시크 명령 실행
                 console.log("Seeking backward from frame " + currentFrame + " to " + targetFrame);
-                mpvPlayer.command(["seek", targetPos.toString(), "absolute", "exact"]);
+                ffmpegPlayer.command(["seek", targetPos.toString(), "absolute", "exact"]);
                 
                 // 7. 현재 프레임 업데이트
-                mpvPlayer.setProperty("pause", true); // 일시정지 상태 유지
+                ffmpegPlayer.setProperty("pause", true); // 일시정지 상태 유지
                 root.frame = targetFrame;
                 root.onFrameChangedEvent(targetFrame);
             } catch (e) {
@@ -711,7 +711,7 @@ Item {
     
     // 특정 프레임으로 이동
     function seekToFrame(targetFrame) {
-        if (mpvPlayer) {
+        if (ffmpegPlayer) {
             try {
                 console.log("VideoArea: Frame seek request -", targetFrame);
                 
@@ -719,7 +719,7 @@ Item {
                 metadataUpdateBlocked = true;
                 
                 // 1. 영상 위치 검증
-                if (typeof mpvPlayer.duration !== 'undefined' && mpvPlayer.duration <= 0) {
+                if (typeof ffmpegPlayer.duration !== 'undefined' && ffmpegPlayer.duration <= 0) {
                     console.error("No valid video - cannot seek");
                     metadataUpdateBlocked = false; // 차단 해제
                     return;
@@ -737,8 +737,8 @@ Item {
                 }
                 
                 // 3. EOF 상태 감지 및 특별 처리 (더 넓은 감지 범위)
-                var currentPos = mpvPlayer.getProperty("time-pos");
-                var duration = mpvPlayer.getProperty("duration");
+                var currentPos = ffmpegPlayer.getProperty("time-pos");
+                var duration = ffmpegPlayer.getProperty("duration");
                 var isAtEOF = false;
                 
                 // EOF 감지 조건을 더 넓게 설정 (마지막 2초 이내 또는 EOF 플래그)
@@ -762,13 +762,13 @@ Item {
                     // EOF에서 벗어나기 위한 더 강력한 처리
                     try {
                         // 1. 먼저 일시정지 강제 설정
-                        mpvPlayer.setProperty("pause", true);
+                        ffmpegPlayer.setProperty("pause", true);
                         
                         // 2. 파일 재로드로 EOF 상태 완전 초기화
-                        var currentFile = mpvPlayer.getProperty("filename");
+                        var currentFile = ffmpegPlayer.getProperty("filename");
                         if (currentFile) {
                             console.log("VideoArea: Reloading file to escape EOF:", currentFile);
-                            mpvPlayer.command(["loadfile", currentFile]);
+                            ffmpegPlayer.command(["loadfile", currentFile]);
                             
                             // 3. 파일 로드 후 목표 프레임으로 시크 예약
                             eofRecoveryTimer.targetFrame = targetFrame;
@@ -806,13 +806,13 @@ Item {
                 var timePos = (adjustedFrame - 1) / fps; // 0-based 시간 위치 계산
                 var numericPos = Number(timePos.toFixed(6)); // 명시적 숫자로 변환
                 
-                console.log("MPV direct seek command:", numericPos, "(프레임:", adjustedFrame, ")");
+                console.log("FFmpeg direct seek command:", numericPos, "(프레임:", adjustedFrame, ")");
                 
                 // 6. 항상 일시정지 상태로 변경 - 정확한 프레임 포지셔닝 위해
-                mpvPlayer.setProperty("pause", true);
+                ffmpegPlayer.setProperty("pause", true);
                 
-                // 7. MPV 안전한 시크 구현 - 속성 설정만 사용
-                mpvPlayer.setProperty("time-pos", numericPos);
+                // 7. FFmpeg 안전한 시크 구현 - 속성 설정만 사용
+                ffmpegPlayer.setProperty("time-pos", numericPos);
                 
                 // 8. 내부 프레임 즉시 업데이트 (UI 응답성)
                 root.frame = targetFrame;
@@ -820,7 +820,7 @@ Item {
                 
                 // 9. 프레임 동기화 검증 - 지연 후 실행
                 Qt.callLater(function() {
-                    syncMpvAndUiFrames(targetFrame);
+                    syncFfmpegAndUiFrames(targetFrame);
                 });
                 
                 // 10. 메타데이터 업데이트 차단 해제 예약
@@ -849,7 +849,7 @@ Item {
         property int targetFrame: 0
         
         onTriggered: {
-            if (mpvPlayer) {
+            if (ffmpegPlayer) {
                 try {
                     console.log("VideoArea: EOF recovery - seeking to target frame after reload:", targetFrame);
                     
@@ -859,8 +859,8 @@ Item {
                     var numericPos = Number(timePos.toFixed(6));
                     
                     // 일시정지 상태에서 시크
-                    mpvPlayer.setProperty("pause", true);
-                    mpvPlayer.setProperty("time-pos", numericPos);
+                    ffmpegPlayer.setProperty("pause", true);
+                    ffmpegPlayer.setProperty("time-pos", numericPos);
                     
                     // 내부 상태 업데이트
                     root.frame = targetFrame;
@@ -890,17 +890,17 @@ Item {
             // 1. 강력한 EOF 탈출 시도
             try {
                 // EOF 플래그 강제 해제
-                mpvPlayer.command(["set", "eof-reached", "no"]);
+                ffmpegPlayer.command(["set", "eof-reached", "no"]);
             } catch (e) {
                 console.log("VideoArea: Cannot clear EOF flag:", e);
             }
             
-            // 2. 여러 MPV 속성을 순차적으로 리셋 시도
+            // 2. 여러 FFmpeg 속성을 순차적으로 리셋 시도
             try {
-                mpvPlayer.setProperty("pause", true);
+                ffmpegPlayer.setProperty("pause", true);
             } catch (e) {
                 try {
-                    mpvPlayer.command(["set", "pause", "yes"]);
+                    ffmpegPlayer.command(["set", "pause", "yes"]);
                 } catch (e2) {
                     console.error("VideoArea: Cannot pause player:", e2);
                 }
@@ -911,26 +911,26 @@ Item {
             
             // 방법 1: 직접 시간 위치 설정
             try {
-                mpvPlayer.setProperty("time-pos", 0.0);
-                mpvPlayer.setProperty("time-start", 0.0);
+                ffmpegPlayer.setProperty("time-pos", 0.0);
+                ffmpegPlayer.setProperty("time-start", 0.0);
                 resetSuccess = true;
                 console.log("VideoArea: Reset to start using time-pos");
             } catch (e1) {
                 // 방법 2: 시크 명령 (exact)
                 try {
-                    mpvPlayer.command(["seek", "0", "absolute", "exact"]);
+                    ffmpegPlayer.command(["seek", "0", "absolute", "exact"]);
                     resetSuccess = true;
                     console.log("VideoArea: Reset to start using seek exact");
                 } catch (e2) {
                     // 방법 3: 일반 시크 명령
                     try {
-                        mpvPlayer.command(["seek", "0", "absolute"]);
+                        ffmpegPlayer.command(["seek", "0", "absolute"]);
                         resetSuccess = true;
                         console.log("VideoArea: Reset to start using seek normal");
                     } catch (e3) {
                         // 방법 4: 위치 백분율로 시크
                         try {
-                            mpvPlayer.command(["seek", "0", "absolute-percent"]);
+                            ffmpegPlayer.command(["seek", "0", "absolute-percent"]);
                             resetSuccess = true;
                             console.log("VideoArea: Reset to start using percent");
                         } catch (e4) {
@@ -1002,12 +1002,12 @@ Item {
             metadataUpdateBlocked = false;
             eofRecoveryFailCount = 0; // 카운터 리셋
             
-            // 3단계: MPV 강제 정지 및 리셋 시도
+            // 3단계: FFmpeg 강제 정지 및 리셋 시도
             try {
-                console.log("VideoArea: Emergency - stopping all MPV operations");
-                mpvPlayer.command(["stop"]);
+                console.log("VideoArea: Emergency - stopping all FFmpeg operations");
+                ffmpegPlayer.command(["stop"]);
             } catch (e) {
-                console.log("VideoArea: MPV stop failed:", e);
+                console.log("VideoArea: FFmpeg stop failed:", e);
             }
             
             // 4단계: 현재 파일 재로드 시도
@@ -1017,7 +1017,7 @@ Item {
                 
                 // 파일 재로드
                 try {
-                    mpvPlayer.command(["loadfile", currentFile, "replace"]);
+                    ffmpegPlayer.command(["loadfile", currentFile, "replace"]);
                     
                     // 재로드 후 목표 위치로 시크하는 타이머 예약
                     emergencyRecoveryTimer.targetFrame = targetFrame;
@@ -1033,8 +1033,8 @@ Item {
             // 5단계: 파일 재로드도 실패하면 처음 위치로 강제 이동
             console.log("VideoArea: Emergency - forcing reset to frame 0");
             try {
-                mpvPlayer.setProperty("pause", true);
-                mpvPlayer.setProperty("time-pos", 0.0);
+                ffmpegPlayer.setProperty("pause", true);
+                ffmpegPlayer.setProperty("time-pos", 0.0);
                 
                 // UI 즉시 업데이트
                 root.frame = 0;
@@ -1111,12 +1111,12 @@ Item {
         property int targetFrame: 0
         
         onTriggered: {
-            if (mpvPlayer) {
+            if (ffmpegPlayer) {
                 try {
                     console.log("VideoArea: Emergency recovery - seeking to target frame after complete reload:", targetFrame);
                     
                     // 일시정지 상태 확인
-                    mpvPlayer.setProperty("pause", true);
+                    ffmpegPlayer.setProperty("pause", true);
                     
                     // 안전한 프레임으로 시크 (처음이 아닌 경우)
                     if (targetFrame > 0 && targetFrame < root.frames - 5) {
@@ -1124,11 +1124,11 @@ Item {
                         var timePos = (adjustedFrame - 1) / fps;
                         var numericPos = Number(timePos.toFixed(6));
                         
-                        mpvPlayer.setProperty("time-pos", numericPos);
+                        ffmpegPlayer.setProperty("time-pos", numericPos);
                         console.log("VideoArea: Emergency recovery - sought to frame:", targetFrame);
                     } else {
                         // 문제가 있는 프레임이면 처음으로
-                        mpvPlayer.setProperty("time-pos", 0.0);
+                        ffmpegPlayer.setProperty("time-pos", 0.0);
                         targetFrame = 0;
                         console.log("VideoArea: Emergency recovery - reset to frame 0 for safety");
                     }
@@ -1171,9 +1171,9 @@ Item {
     property int eofRecoveryFailCount: 0
     property int maxEofRecoveryAttempts: 3
     
-    // 새로운 함수: MPV와 UI 프레임 동기화 (영상 끝에서 비활성화)
-    function syncMpvAndUiFrames(targetFrame) {
-        if (!mpvPlayer) return;
+    // 새로운 함수: FFmpeg와 UI 프레임 동기화 (영상 끝에서 비활성화)
+    function syncFfmpegAndUiFrames(targetFrame) {
+        if (!ffmpegPlayer) return;
         
         // 영상 끝에서는 동기화 중단
         if (isNearEndOfFile || isAtEndOfFile) {
@@ -1182,19 +1182,19 @@ Item {
         }
         
         try {
-            var actualPos = mpvPlayer.getProperty("time-pos");
+            var actualPos = ffmpegPlayer.getProperty("time-pos");
             if (actualPos !== undefined && actualPos !== null) {
                 // 영상 끝 근처 감지 (마지막 1초 이내)
-                var duration = mpvPlayer.getProperty("duration");
+                var duration = ffmpegPlayer.getProperty("duration");
                 if (duration && actualPos > duration - 1.0) {
                     console.log("Sync mediator: Near end detected - disabling sync");
                     isNearEndOfFile = true;
                     return;
                 }
                 
-                // MPV의 실제 프레임 계산 (시간 -> 프레임)
-                var rawMpvFrame = Math.round(actualPos * fps);
-                var actualFrame = rawMpvFrame;
+                // FFmpeg의 실제 프레임 계산 (시간 -> 프레임)
+                var rawFfmpegFrame = Math.round(actualPos * fps);
+                var actualFrame = rawFfmpegFrame;
                 
                 // 마지막 5프레임 이내에서는 동기화 중단
                 if (root.frames > 0 && actualFrame >= root.frames - 5) {
@@ -1205,19 +1205,19 @@ Item {
                 
                 // 정상적인 범위인지 확인
                 if (actualFrame < 0 || (root.frames > 0 && actualFrame >= root.frames)) {
-                    console.warn("Sync mediator: Invalid MPV frame detected:", actualFrame);
+                    console.warn("Sync mediator: Invalid FFmpeg frame detected:", actualFrame);
                     return;
                 }
                 
-                console.log("Sync mediator: MPV raw frame=", rawMpvFrame, ", adjusted frame=", actualFrame, ", UI frame=", targetFrame);
+                console.log("Sync mediator: FFmpeg raw frame=", rawFfmpegFrame, ", adjusted frame=", actualFrame, ", UI frame=", targetFrame);
                 
-                // MPV와 UI 프레임 차이 로깅만 (강제 동기화 완전 비활성화)
+                // FFmpeg와 UI 프레임 차이 로깅만 (강제 동기화 완전 비활성화)
                 if (Math.abs(actualFrame - targetFrame) > 10) {
-                    console.log("Sync mediator: Frame difference detected - MPV:", actualFrame, "UI:", targetFrame);
-                    console.log("Sync mediator: 사용자 시크 우선 - MPV 동기화 생략");
+                    console.log("Sync mediator: Frame difference detected - FFmpeg:", actualFrame, "UI:", targetFrame);
+                    console.log("Sync mediator: 사용자 시크 우선 - FFmpeg 동기화 생략");
                     
                     // *** 중요: 강제 동기화 완전 제거 - 사용자 시크 우선 처리 ***
-                    // 더 이상 MPV 프레임으로 UI를 강제 업데이트하지 않음
+                    // 더 이상 FFmpeg 프레임으로 UI를 강제 업데이트하지 않음
                     return;
                 }
             }
@@ -1235,17 +1235,17 @@ Item {
         property int targetFrame: 0
         
         onTriggered: {
-            if (mpvPlayer) {
+            if (ffmpegPlayer) {
                 try {
-                    // 명확한 숫자 형식으로 변환 (MPV 오류 방지)
+                    // 명확한 숫자 형식으로 변환 (FFmpeg 오류 방지)
                     var numericPos = Number(timePos.toFixed(6));
                     
                     // 안전하게 속성 직접 설정 - 명령 대신
-                    mpvPlayer.setProperty("pause", true);
-                    mpvPlayer.setProperty("time-pos", numericPos);
+                    ffmpegPlayer.setProperty("pause", true);
+                    ffmpegPlayer.setProperty("time-pos", numericPos);
                     
                     // 현재 프레임 상태 재확인 및 시그널 발생
-                    var actualPos = mpvPlayer.getProperty("time-pos");
+                    var actualPos = ffmpegPlayer.getProperty("time-pos");
                     if (actualPos !== undefined && actualPos !== null) {
                         var actualFrame = Math.round(actualPos * fps);
                         console.log("Second verification: requested=", targetFrame, "actual=", actualFrame);
@@ -1253,7 +1253,7 @@ Item {
                         if (Math.abs(actualFrame - targetFrame) > 2) {
                             console.log("Frame still mismatched, performing second correction");
                             
-                            // MPV 상태에 맞추어 UI 업데이트 (실제 상태에 맞춤)
+                            // FFmpeg 상태에 맞추어 UI 업데이트 (실제 상태에 맞춤)
                             root.frame = actualFrame;
                             root.onFrameChangedEvent(actualFrame);
                         }
@@ -1274,20 +1274,20 @@ Item {
         property int targetFrame: 0
         
         onTriggered: {
-            if (mpvPlayer) {
+            if (ffmpegPlayer) {
                 try {
                     // 최종 상태 검증
-                    mpvPlayer.setProperty("pause", true);
-                    var actualPos = mpvPlayer.getProperty("time-pos");
+                    ffmpegPlayer.setProperty("pause", true);
+                    var actualPos = ffmpegPlayer.getProperty("time-pos");
                     if (actualPos !== undefined && actualPos !== null) {
                         var actualFrame = Math.round(actualPos * fps);
-                        console.log("Verification: MPV frame=", actualFrame, "_internalFrame=", targetFrame);
+                        console.log("Verification: FFmpeg frame=", actualFrame, "_internalFrame=", targetFrame);
                         
                         // 여전히 불일치가 있는지 확인 (2프레임 이상 차이 시)
                         if (Math.abs(actualFrame - targetFrame) > 2) {
                             console.log("Frame mismatch detected - synchronizing");
                             
-                            // MPV의 실제 상태를 기준으로 UI 동기화
+                            // FFmpeg의 실제 상태를 기준으로 UI 동기화
                             root.frame = actualFrame;
                             root.onFrameChangedEvent(actualFrame);
                             
@@ -1410,8 +1410,8 @@ Item {
     
     // Toggle scopes
     function toggleScopes() {
-        if (!mpvSupported) {
-            showMessage("Cannot toggle scopes: MPV support not available");
+        if (!ffmpegSupported) {
+            showMessage("Cannot toggle scopes: FFmpeg support not available");
             return;
         }
         
@@ -1421,15 +1421,15 @@ Item {
     
     // Add video filter
     function addVideoFilter(filter) {
-        if (!mpvSupported) {
-            showMessage("Cannot add filter: MPV support not available");
+        if (!ffmpegSupported) {
+            showMessage("Cannot add filter: FFmpeg support not available");
             return false;
         }
         
-        if (mpvPlayer) {
+        if (ffmpegPlayer) {
             try {
                 console.log("Adding video filter:", filter);
-                mpvPlayer.command(["vf", "add", filter]);
+                ffmpegPlayer.command(["vf", "add", filter]);
                 return true;
             } catch (e) {
                 console.error("Failed to add filter:", e);
@@ -1438,21 +1438,21 @@ Item {
             }
         }
         
-        showMessage("MPV player not initialized");
+        showMessage("FFmpeg player not initialized");
         return false;
     }
     
     // Remove video filter
     function removeVideoFilter(filter) {
-        if (!mpvSupported) {
-            showMessage("Cannot remove filter: MPV support not available");
+        if (!ffmpegSupported) {
+            showMessage("Cannot remove filter: FFmpeg support not available");
             return false;
         }
         
-        if (mpvPlayer) {
+        if (ffmpegPlayer) {
             try {
                 console.log("Removing video filter:", filter);
-                mpvPlayer.command(["vf", "remove", filter]);
+                ffmpegPlayer.command(["vf", "remove", filter]);
                 return true;
             } catch (e) {
                 console.error("Failed to remove filter:", e);
@@ -1461,7 +1461,7 @@ Item {
             }
         }
         
-        showMessage("MPV player not initialized");
+        showMessage("FFmpeg player not initialized");
         return false;
     }
     
@@ -1479,8 +1479,8 @@ Item {
             return;
         }
         
-        if (!mpvPlayer) {
-            console.log("Cannot fetch metadata: mpvPlayer is null");
+        if (!ffmpegPlayer) {
+            console.log("Cannot fetch metadata: ffmpegPlayer is null");
             return;
         }
         
@@ -1502,13 +1502,13 @@ Item {
             // Try to get all available properties for debugging first
             console.log("Getting available property list...");
             try {
-                var props = mpvPlayer.getPropertyString("property-list");
+                var props = ffmpegPlayer.getPropertyString("property-list");
                 if (props) {
                     console.log("Available properties:", props);
                 }
                 
                 // Also try to get tracks info which often has codec info
-                var trackList = mpvPlayer.getProperty("track-list");
+                var trackList = ffmpegPlayer.getProperty("track-list");
                 if (trackList) {
                     console.log("Track list information:", JSON.stringify(trackList));
                 }
@@ -1517,7 +1517,7 @@ Item {
             }
             
             // Get codec information - try multiple approaches
-            // 1. Try standard MPV property
+            // 1. Try standard FFmpeg property
             videoCodec = getVideoProperty("video-codec") || "";
             console.log("Video codec from video-codec:", videoCodec);
             
@@ -1530,7 +1530,7 @@ Item {
             // 3. If that fails, try getting from track-list
             if (!videoCodec) {
                 try {
-                    var tracks = mpvPlayer.getProperty("track-list");
+                    var tracks = ffmpegPlayer.getProperty("track-list");
                     if (tracks && Array.isArray(tracks)) {
                         for (var i = 0; i < tracks.length; i++) {
                             var track = tracks[i];
@@ -1551,7 +1551,7 @@ Item {
             // 4. If that fails, try direct command to get format info
             if (!videoCodec) {
                 try {
-                    mpvPlayer.command(["script-message-to", "console", "format"]);
+                    ffmpegPlayer.command(["script-message-to", "console", "format"]);
                     console.log("Requested format info via script message");
                 } catch (err) {
                     console.log("Error requesting format info:", err);
@@ -1616,27 +1616,27 @@ Item {
         }
     }
     
-    // Helper function to safely get property from MPV
+    // Helper function to safely get property from FFmpeg
     function getVideoProperty(propertyName) {
         try {
             console.log("Trying to get property:", propertyName);
             
-            // First check if mpvPlayer is valid
-            if (!mpvPlayer) {
-                console.log("Cannot get property: mpvPlayer is null");
+            // First check if ffmpegPlayer is valid
+            if (!ffmpegPlayer) {
+                console.log("Cannot get property: ffmpegPlayer is null");
                 return null;
             }
             
             // Try direct property access first if available
-            if (typeof mpvPlayer[propertyName] !== "undefined") {
-                console.log("Direct property access for:", propertyName, "=", mpvPlayer[propertyName]);
-                return mpvPlayer[propertyName];
+            if (typeof ffmpegPlayer[propertyName] !== "undefined") {
+                console.log("Direct property access for:", propertyName, "=", ffmpegPlayer[propertyName]);
+                return ffmpegPlayer[propertyName];
             }
             
             // Check if getProperty method exists
-            if (typeof mpvPlayer.getProperty === "function") {
+            if (typeof ffmpegPlayer.getProperty === "function") {
                 try {
-                    var value = mpvPlayer.getProperty(propertyName);
+                    var value = ffmpegPlayer.getProperty(propertyName);
                     console.log("Property", propertyName, "value:", value);
                     return value;
                 } catch (e) {
@@ -1645,22 +1645,22 @@ Item {
             }
             
             // Fallback to getPropertyString if available
-            if (typeof mpvPlayer.getPropertyString === "function") {
+            if (typeof ffmpegPlayer.getPropertyString === "function") {
                 try {
                     console.log("Trying getPropertyString instead");
-                    return mpvPlayer.getPropertyString(propertyName);
+                    return ffmpegPlayer.getPropertyString(propertyName);
                 } catch (e) {
                     console.log("Error getting property via getPropertyString:", e);
                 }
             }
             
             // Special case for common properties
-            if (propertyName === "video-codec" && typeof mpvPlayer.videoCodec !== "undefined") {
-                return mpvPlayer.videoCodec;
+            if (propertyName === "video-codec" && typeof ffmpegPlayer.videoCodec !== "undefined") {
+                return ffmpegPlayer.videoCodec;
             }
             
-            if (propertyName === "fps" && typeof mpvPlayer.fps !== "undefined") {
-                return mpvPlayer.fps;
+            if (propertyName === "fps" && typeof ffmpegPlayer.fps !== "undefined") {
+                return ffmpegPlayer.fps;
             }
             
             console.log("No method available to get property:", propertyName);

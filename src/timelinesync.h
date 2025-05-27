@@ -6,7 +6,7 @@
 #include <QMutex>
 #include <QDebug>
 #include <cmath>
-#include "mpvobject.h"
+#include "FFmpegObject.h"
 
 // 타임라인과 비디오 동기화를 정밀하게 관리하는 클래스
 class TimelineSync : public QObject
@@ -26,8 +26,8 @@ public:
     explicit TimelineSync(QObject *parent = nullptr);
     ~TimelineSync();
     
-    // MPV 객체 연결
-    void connectMpv(MpvObject* mpv);
+    // FFmpeg 객체 연결
+    void connectFfmpeg(FFmpegObject* ffmpeg);
     
     // QML에서 호출 가능한 메서드들
     Q_INVOKABLE void seekToFrame(int frame, bool exact = true);
@@ -69,13 +69,13 @@ signals:
     void seekCompleted();
     
 private slots:
-    // MPV 이벤트 핸들러
-    void onMpvPositionChanged(double position);
-    void onMpvDurationChanged(double duration);
-    void onMpvPlayingChanged(bool playing);
-    void onMpvPauseChanged(bool paused);
-    void onMpvEndReached();
-    void onMpvFrameCountChanged(int frameCount);
+    // FFmpeg 이벤트 핸들러
+    void onFfmpegPositionChanged(double position);
+    void onFfmpegDurationChanged(double duration);
+    void onFfmpegPlayingChanged(bool playing);
+    void onFfmpegPauseChanged(bool paused);
+    void onFfmpegEndReached();
+    void onFfmpegFrameCountChanged(int frameCount);
     
     // 내부 동기화 핸들러
     void handleSyncTimer();
@@ -90,7 +90,7 @@ private:
     double calculatePositionFromFrame(int frame) const;
     
     // 멤버 변수
-    MpvObject* m_mpv = nullptr;
+    FFmpegObject* m_ffmpeg = nullptr;
     
     // 재생 상태
     int m_currentFrame = 0;

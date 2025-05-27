@@ -1,14 +1,13 @@
 bool VideoScopeItem::extractCurrentFrame()
 {
-    mpv_handle* handle = getMpvHandle();
-    if (!handle || !m_mpv)
+    if (!m_ffmpeg)
         return false;
     
     QMutexLocker locker(&m_frameMutex);
     
-    // 1. mpv의 현재 프레임 크기 확인
-    QVariant widthVar = m_mpv->getProperty("width");
-    QVariant heightVar = m_mpv->getProperty("height");
+    // 1. FFmpeg의 현재 프레임 크기 확인
+    QVariant widthVar = m_ffmpeg->getProperty("width");
+    QVariant heightVar = m_ffmpeg->getProperty("height");
     
     if (!widthVar.isValid() || !heightVar.isValid())
         return false;
@@ -35,11 +34,11 @@ bool VideoScopeItem::extractCurrentFrame()
     // 대신 더 향상된 테스트 패턴 생성
     try {
         // 비디오가 재생 중인지 확인
-        QVariant pausedVar = m_mpv->getProperty("pause");
+        QVariant pausedVar = m_ffmpeg->getProperty("paused");
         bool isPaused = pausedVar.toBool();
         
         // 현재 재생 시간 가져오기
-        QVariant posVar = m_mpv->getProperty("time-pos");
+        QVariant posVar = m_ffmpeg->getProperty("position");
         double position = posVar.isValid() ? posVar.toDouble() : 0.0;
         
         // 향상된 테스트 패턴 생성

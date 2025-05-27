@@ -29,10 +29,8 @@
 #include <objbase.h>
 #endif
 
-#ifdef HAVE_MPV
-#include "mpvobject.h"
+#include "FFmpegObject.h"
 #include "timelinesync.h"
-#endif
 
 #include "splash.h"
 
@@ -45,7 +43,7 @@ bool registerFileAssociations() {
     
     qDebug() << "Registering file associations for:" << appPath;
     
-    // MPV 지원 비디오/오디오 확장자들
+    // FFmpeg 지원 비디오/오디오 확장자들
     QStringList videoExtensions = {
         // 일반 비디오 포맷
         ".mp4", ".m4v", ".mkv", ".avi", ".mov", ".flv", ".webm", ".wmv",
@@ -554,14 +552,12 @@ int main(int argc, char *argv[])
     // QML 엔진 초기화
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     
-#ifdef HAVE_MPV
-    // MPV 객체 등록 (QtQuick에서 사용 가능하도록)
-    qmlRegisterType<MpvObject>("mpv", 1, 0, "MpvObject");
+    // FFmpeg 객체 등록 (QtQuick에서 사용 가능하도록)
+    qmlRegisterType<FFmpegObject>("mpv", 1, 0, "MpvObject"); // MPV와 동일한 이름으로 등록하여 호환성 유지
     
     // TimelineSync 객체 생성 및 등록
     TimelineSync* timelineSync = new TimelineSync();
     qmlRegisterType<TimelineSync>("app.sync", 1, 0, "TimelineSync");
-#endif
     
     // QML 모듈 등록 및 기본 속성 설정
     QQmlApplicationEngine engine;
@@ -633,12 +629,8 @@ int main(int argc, char *argv[])
     // QDir::setCurrent(qmlRootPath); // 이 줄 제거!
     qDebug() << "Working directory preserved as:" << QDir::currentPath();
     
-#ifdef HAVE_MPV
     engine.rootContext()->setContextProperty("hasMpvSupport", true);
     engine.rootContext()->setContextProperty("timelineSync", timelineSync);
-#else
-    engine.rootContext()->setContextProperty("hasMpvSupport", false);
-#endif
     
     // 애플리케이션 정보를 QML에 전달
     engine.rootContext()->setContextProperty("appName", "Player by HEIMLICH®");

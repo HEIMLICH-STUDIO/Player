@@ -70,267 +70,188 @@ endif()
 
 message(STATUS "Building for platform: ${PLATFORM_NAME}")
 
-find_package(Qt6 COMPONENTS Core Quick Gui OpenGL QuickControls2 Widgets REQUIRED)
+find_package(Qt6 COMPONENTS Core Quick Gui OpenGL OpenGLWidgets QuickControls2 Widgets REQUIRED)
 
-# Check if MPV is available for the current platform
-set(MPV_FOUND FALSE)
-set(MPV_ROOT "${CMAKE_SOURCE_DIR}/external/libs/${PLATFORM_NAME}")
-
-# Platform-specific MPV settings
-if(WIN32)
-    if(EXISTS "${MPV_ROOT}/include/client.h" AND 
-       EXISTS "${MPV_ROOT}/bin/libmpv-2.dll")
-        set(MPV_FOUND TRUE)
-        set(MPV_INCLUDE_DIR "${MPV_ROOT}/include")
-        set(MPV_LIBRARY "${MPV_ROOT}/lib/libmpv.dll.a")
-        set(MPV_DLL "${MPV_ROOT}/bin/libmpv-2.dll")
-    elseif(EXISTS "${CMAKE_SOURCE_DIR}/external/mpv-dev/include/client.h" AND 
-          EXISTS "${CMAKE_SOURCE_DIR}/external/mpv-dev/bin/libmpv-2.dll")
-        # Fallback to previous path if exists
-        set(MPV_FOUND TRUE)
-        set(MPV_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/mpv-dev/include")
-        set(MPV_LIBRARY "${CMAKE_SOURCE_DIR}/external/mpv-dev/lib/libmpv.dll.a")
-        set(MPV_DLL "${CMAKE_SOURCE_DIR}/external/mpv-dev/bin/libmpv-2.dll")
-        message(STATUS "Using fallback MPV path")
-    endif()
-elseif(APPLE)
-    if(EXISTS "${MPV_ROOT}/include/mpv/client.h")
-        set(MPV_FOUND TRUE)
-        set(MPV_INCLUDE_DIR "${MPV_ROOT}/include")
-        set(MPV_LIBRARY "${MPV_ROOT}/lib/libmpv.dylib")
-        set(MPV_DLL "${MPV_ROOT}/lib/libmpv.dylib")
-    endif()
-elseif(ANDROID)
-    if(EXISTS "${MPV_ROOT}/include/mpv/client.h")
-        set(MPV_FOUND TRUE)
-        set(MPV_INCLUDE_DIR "${MPV_ROOT}/include")
-        set(MPV_LIBRARY "${MPV_ROOT}/lib/libmpv.so")
-    endif()
-else() # Linux
-    if(EXISTS "${MPV_ROOT}/include/mpv/client.h")
-        set(MPV_FOUND TRUE)
-        set(MPV_INCLUDE_DIR "${MPV_ROOT}/include")
-        set(MPV_LIBRARY "${MPV_ROOT}/lib/libmpv.so")
-    else()
-        # Try to find system-installed mpv on Linux
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(MPV IMPORTED_TARGET mpv)
-        if(MPV_FOUND)
-            set(MPV_INCLUDE_DIR ${MPV_INCLUDE_DIRS})
-            set(MPV_LIBRARY ${MPV_LIBRARIES})
-            message(STATUS "Found system MPV: ${MPV_LIBRARY}")
-        endif()
-    endif()
-endif()
-
-if(MPV_FOUND)
-    message(STATUS "Found MPV libraries for ${PLATFORM_NAME}")
-    message(STATUS "MPV include directory: ${MPV_INCLUDE_DIR}")
-    message(STATUS "MPV library: ${MPV_LIBRARY}")
+# FFmpeg 설정
+find_package(PkgConfig)
+if(PkgConfig_FOUND)
+    message(STATUS "PkgConfig found, using pkg-config to find FFmpeg")
+    pkg_check_modules(FFMPEG REQUIRED 
+        libavformat>=58.0.0
+        libavcodec>=58.0.0 
+        libavutil>=56.0.0
+        libswscale>=5.0.0
+        libswresample>=3.0.0
+    )
 else()
-    message(WARNING "MPV not found for platform ${PLATFORM_NAME}. Building without MPV support.")
-endif()
-
-# Set project sources based on MPV availability
-if(MPV_FOUND)
-    message(STATUS "Building Player by HEIMLICH® with MPV support")
-    if(WIN32)
-        # 아이콘 파일을 빌드 디렉토리로 복사
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
-            "${CMAKE_BINARY_DIR}/icon_win.ico"
-            COPYONLY
-        )
-        
-        # 추가 아이콘 위치에도 복사
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
-            "${CMAKE_SOURCE_DIR}/icon_win.ico"
-            COPYONLY
-        )
-        
-        # Windows 리소스 파일 템플릿 생성
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/resources.rc"
-            "${CMAKE_BINARY_DIR}/resources.rc"
-            @ONLY
-        )
-        
-        # 실행파일 생성 (리소스 파일 포함)
-        add_executable(${PROJECT_NAME} WIN32
-            src/main.cpp
-            src/mpvobject.cpp
-            src/mpvobject.h
-            src/timelinesync.cpp
-            src/timelinesync.h
-            qml.qrc
-            "${CMAKE_BINARY_DIR}/resources.rc"
-        )
-    else()
-        add_executable(${PROJECT_NAME}
-            src/main.cpp
-            src/mpvobject.cpp
-            src/mpvobject.h
-            src/timelinesync.cpp
-            src/timelinesync.h
-            qml.qrc
-        )
-    endif()
+    message(STATUS "PkgConfig not found, using FindPkgConfig alternative for Windows")
+    # Windows에서 vcpkg 또는 직접 설치된 FFmpeg 찾기
+    find_path(FFMPEG_INCLUDE_DIR libavformat/avformat.h
+        HINTS
+            ${CMAKE_PREFIX_PATH}/include
+            C:/vcpkg/installed/x64-windows/include
+            C:/vcpkg/installed/x64-mingw-dynamic/include
+            C:/msys64/mingw64/include
+        PATH_SUFFIXES ffmpeg
+    )
     
-    # Define HAVE_MPV for conditional compilation
-    add_compile_definitions(HAVE_MPV)
-else()
-    message(STATUS "Building Player by HEIMLICH® (Basic Version without MPV)")
-    if(WIN32)
-        # 아이콘 파일을 빌드 디렉토리로 복사
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
-            "${CMAKE_BINARY_DIR}/icon_win.ico"
-            COPYONLY
+    find_library(FFMPEG_avformat_LIBRARY avformat
+        HINTS
+            ${CMAKE_PREFIX_PATH}/lib
+            C:/vcpkg/installed/x64-windows/lib
+            C:/vcpkg/installed/x64-mingw-dynamic/lib
+            C:/msys64/mingw64/lib
+    )
+    
+    find_library(FFMPEG_avcodec_LIBRARY avcodec
+        HINTS
+            ${CMAKE_PREFIX_PATH}/lib
+            C:/vcpkg/installed/x64-windows/lib
+            C:/vcpkg/installed/x64-mingw-dynamic/lib
+            C:/msys64/mingw64/lib
+    )
+    
+    find_library(FFMPEG_avutil_LIBRARY avutil
+        HINTS
+            ${CMAKE_PREFIX_PATH}/lib
+            C:/vcpkg/installed/x64-windows/lib
+            C:/vcpkg/installed/x64-mingw-dynamic/lib
+            C:/msys64/mingw64/lib
+    )
+    
+    find_library(FFMPEG_swscale_LIBRARY swscale
+        HINTS
+            ${CMAKE_PREFIX_PATH}/lib
+            C:/vcpkg/installed/x64-windows/lib
+            C:/vcpkg/installed/x64-mingw-dynamic/lib
+            C:/msys64/mingw64/lib
+    )
+    
+    find_library(FFMPEG_swresample_LIBRARY swresample
+        HINTS
+            ${CMAKE_PREFIX_PATH}/lib
+            C:/vcpkg/installed/x64-windows/lib
+            C:/vcpkg/installed/x64-mingw-dynamic/lib
+            C:/msys64/mingw64/lib
+    )
+    
+    if(FFMPEG_INCLUDE_DIR AND FFMPEG_avformat_LIBRARY AND FFMPEG_avcodec_LIBRARY 
+       AND FFMPEG_avutil_LIBRARY AND FFMPEG_swscale_LIBRARY AND FFMPEG_swresample_LIBRARY)
+        set(FFMPEG_FOUND TRUE)
+        set(FFMPEG_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIR})
+        set(FFMPEG_LIBRARIES 
+            ${FFMPEG_avformat_LIBRARY}
+            ${FFMPEG_avcodec_LIBRARY}
+            ${FFMPEG_avutil_LIBRARY}
+            ${FFMPEG_swscale_LIBRARY}
+            ${FFMPEG_swresample_LIBRARY}
         )
-        
-        # 추가 아이콘 위치에도 복사
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
-            "${CMAKE_SOURCE_DIR}/icon_win.ico"
-            COPYONLY
-        )
-        
-        # Windows 리소스 파일 템플릿 생성
-        configure_file(
-            "${CMAKE_SOURCE_DIR}/resources.rc"
-            "${CMAKE_BINARY_DIR}/resources.rc"
-            @ONLY
-        )
-        
-        # 실행파일 생성 (리소스 파일 포함)
-        add_executable(${PROJECT_NAME} WIN32
-            src/main.cpp
-            qml.qrc
-            "${CMAKE_BINARY_DIR}/resources.rc"
-        )
+        message(STATUS "Found FFmpeg libraries manually")
+        message(STATUS "  Include dir: ${FFMPEG_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${FFMPEG_LIBRARIES}")
     else()
-        add_executable(${PROJECT_NAME}
-            src/main.cpp
-            qml.qrc
-        )
+        set(FFMPEG_FOUND FALSE)
+        message(STATUS "FFmpeg not found in standard locations")
+        message(STATUS "  Include dir: ${FFMPEG_INCLUDE_DIR}")
+        message(STATUS "  avformat: ${FFMPEG_avformat_LIBRARY}")
+        message(STATUS "  avcodec: ${FFMPEG_avcodec_LIBRARY}")
+        message(STATUS "  avutil: ${FFMPEG_avutil_LIBRARY}")
+        message(STATUS "  swscale: ${FFMPEG_swscale_LIBRARY}")
+        message(STATUS "  swresample: ${FFMPEG_swresample_LIBRARY}")
     endif()
 endif()
+
+if(FFMPEG_FOUND)
+    message(STATUS "Using FFmpeg engine")
+    add_compile_definitions(USE_FFMPEG_ENGINE)
+else()
+    message(FATAL_ERROR "FFmpeg not found. Please install FFmpeg via vcpkg, MSYS2, or manually.")
+endif()
+
+# Set project sources
+message(STATUS "Building Player by HEIMLICH® with FFmpeg support")
+if(WIN32)
+    # 아이콘 파일을 빌드 디렉토리로 복사
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
+        "${CMAKE_BINARY_DIR}/icon_win.ico"
+        COPYONLY
+    )
+    
+    # 추가 아이콘 위치에도 복사
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/assets/Images/icon_win.ico"
+        "${CMAKE_SOURCE_DIR}/icon_win.ico"
+        COPYONLY
+    )
+    
+    # Windows 리소스 파일 템플릿 생성
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/resources.rc"
+        "${CMAKE_BINARY_DIR}/resources.rc"
+        @ONLY
+    )
+    
+    # 실행파일 생성 (리소스 파일 포함)
+    add_executable(${PROJECT_NAME} WIN32
+        src/main.cpp
+        src/FFmpegObject.cpp
+        src/core/FFmpegEngine.cpp
+        src/core/VideoDecoder.cpp
+        src/core/AudioDecoder.cpp
+        src/rendering/VideoRenderer.cpp
+        src/utils/TimecodeUtils.cpp
+        src/timelinesync.cpp
+        src/videoscoperenderer.cpp
+        qml.qrc
+        "${CMAKE_BINARY_DIR}/resources.rc"
+    )
+else()
+    add_executable(${PROJECT_NAME}
+        src/main.cpp
+        src/FFmpegObject.cpp
+        src/core/FFmpegEngine.cpp
+        src/core/VideoDecoder.cpp
+        src/core/AudioDecoder.cpp
+        src/rendering/VideoRenderer.cpp
+        src/utils/TimecodeUtils.cpp
+        src/timelinesync.cpp
+        src/videoscoperenderer.cpp
+        qml.qrc
+    )
+endif()
+
+# Define HAVE_FFMPEG for conditional compilation
+add_compile_definitions(HAVE_FFMPEG)
+
 
 # Link libraries
-if(MPV_FOUND)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${MPV_INCLUDE_DIR})
-    target_link_libraries(${PROJECT_NAME} PRIVATE
-        Qt6::Core
-        Qt6::Quick
-        Qt6::Gui
-        Qt6::OpenGL
-        Qt6::QuickControls2
-        Qt6::Widgets
-        ${MPV_LIBRARY}
-    )
-    
-    # Post-build command to copy DLL (Windows and macOS)
-    if(WIN32 AND EXISTS "${MPV_DLL}")
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${MPV_DLL}"
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>
-        )
-        
-        # Copy assets folder to build directory for installer
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/assets"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
-            COMMENT "Copying assets folder to build directory"
-        )
-        
-        # Copy QML folder to build directory for installer
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/qml"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
-            COMMENT "Copying QML folder to build directory"
-        )
-    elseif(APPLE AND EXISTS "${MPV_DLL}")
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${MPV_DLL}"
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>
-        )
-        
-        # Copy assets folder to build directory for installer (macOS)
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/assets"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
-            COMMENT "Copying assets folder to build directory"
-        )
-        
-        # Copy QML folder to build directory for installer (macOS)
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/qml"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
-            COMMENT "Copying QML folder to build directory"
-        )
-        
-        # Set macOS bundle properties if needed
-        set_target_properties(${PROJECT_NAME} PROPERTIES
-            MACOSX_BUNDLE TRUE
-            MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/macos/Info.plist
-            MACOSX_BUNDLE_ICON_FILE icon_mac.icns
-        )
-        
-        # Copy icon file to Resources directory in bundle
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/assets/Images/icon_mac.icns
-                $<TARGET_BUNDLE_CONTENT_DIR:${PROJECT_NAME}>/Resources/icon_mac.icns
-            COMMENT "Copying macOS icon to bundle Resources"
-        )
-    else()
-        # Copy assets and QML folders even without MPV DLL (for other platforms)
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/assets"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
-            COMMENT "Copying assets folder to build directory"
-        )
-        
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/qml"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
-            COMMENT "Copying QML folder to build directory"
-        )
-    endif()
-else()
-    target_link_libraries(${PROJECT_NAME} PRIVATE
-        Qt6::Core
-        Qt6::Quick
-        Qt6::Gui
-        Qt6::OpenGL
-        Qt6::QuickControls2
-        Qt6::Widgets
-    )
-    
-    # Copy assets and QML folders to build directory even without MPV
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/assets"
-        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
-        COMMENT "Copying assets folder to build directory"
-    )
-    
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/qml"
-        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
-        COMMENT "Copying QML folder to build directory"
-    )
-endif()
+target_include_directories(${PROJECT_NAME} PRIVATE ${FFMPEG_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Gui
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
+    Qt6::QuickControls2
+    Qt6::Widgets
+    ${FFMPEG_LIBRARIES}
+)
+
+# Copy assets and QML folders to build directory
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/assets"
+    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+    COMMENT "Copying assets folder to build directory"
+)
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/qml"
+    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/qml"
+    COMMENT "Copying QML folder to build directory"
+)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
